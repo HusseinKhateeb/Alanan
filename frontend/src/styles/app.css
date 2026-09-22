@@ -16,6 +16,24 @@
 .user-list { display: grid; gap: 12px; }
 .user-list article { display: flex; gap: 16px; flex-wrap: wrap; padding: 20px; background: #fffef9; border: 1px solid #dce1d8; border-radius: 12px; }
 .pagination { display: flex; gap: 16px; margin-top: 24px; }
+.catalog-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
+.catalog-nav a { padding: 10px 14px; border-radius: 8px; background: #e8eee6; text-decoration: none; }
+.catalog-nav a[aria-current] { background: #213d32; color: white; }
+.catalog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.catalog-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 20px 0; }
+.catalog-filters input[type=search] { min-width: 0; flex: 1; }
+.reference-editor { border: 1px solid #b6c6b9; background: #fffef9; border-radius: 16px; padding: 24px; margin: 24px 0; max-width: 640px; }
+.reference-editor form { display: flex; flex-direction: column; gap: 12px; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.reference-editor input:not([type=checkbox]), .reference-editor select, .catalog-filters input[type=search] { font: inherit; border: 1px solid #9daa9f; padding: 12px; border-radius: 8px; background: white; min-height: 44px; color: inherit; }
+.checkbox { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.checkbox input { width: 20px; height: 20px; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.reference-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.reference-list article { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px; background: #fffef9; border: 1px solid #dce1d8; border-radius: 12px; }
+.reference-list article div { display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.reference-list small { color: #617067; }
+.duplicate { padding: 16px; border-radius: 8px; background: #f0e6cf; }
 * { box-sizing: border-box; }
 body { margin: 0; }
 button, a { -webkit-tap-highlight-color: transparent; }

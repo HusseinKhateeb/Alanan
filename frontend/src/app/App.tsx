@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from '../auth/AuthProvider'
 import { LoginPage } from '../auth/LoginPage'
 import { AccountControls } from '../auth/AccountControls'
 import { UserDirectoryPage } from '../features/users/UserDirectoryPage'
+import { MasterDataPage } from '../features/masterdata/MasterDataPage'
+import { catalogs, canRead } from '../features/masterdata/catalogs'
 
 function Workspace() {
   const { t } = useTranslation()
@@ -17,6 +19,8 @@ function Workspace() {
     <div className="eyebrow">{t('workspace')}</div>
     <h1>{t('welcome')}</h1>
     <p className="intro">{t('intro')}</p>
+    <nav className="catalog-nav" aria-label={t('master.title')}>{catalogs.filter(kind => canRead(kind, user!.permissions)).map(kind =>
+      <Link key={kind} to={'/master/' + kind}>{t('master.' + kind)}</Link>)}</nav>
     {user?.permissions.includes('USERS_MANAGE') && <Link className="directory-link" to="/users">{t('auth.users')}</Link>}
     <section className="setup" aria-labelledby="foundation-title">
       <div className="setup-icon" aria-hidden="true">A</div>
@@ -46,7 +50,7 @@ function AuthenticatedApp() {
       <img src="/icon.svg" alt="" width="44" height="44" />
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
     </Link><AccountControls /></header>
-    {user ? <Routes><Route path="/" element={<Workspace />} /><Route path="/users" element={<UserDirectoryPage />} /><Route path="*" element={<main><h1>{t('notFound')}</h1><Link to="/">{t('home')}</Link></main>} /></Routes> : <LoginPage />}
+    {user ? <Routes><Route path="/" element={<Workspace />} /><Route path="/master/:catalog" element={<MasterDataPage />} /><Route path="/users" element={<UserDirectoryPage />} /><Route path="*" element={<main><h1>{t('notFound')}</h1><Link to="/">{t('home')}</Link></main>} /></Routes> : <LoginPage />}
     <UpdateNotice />
   </>
 }

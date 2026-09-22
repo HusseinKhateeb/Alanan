@@ -18,12 +18,20 @@
 - Bounded login throttling, safe error envelopes/request IDs and authentication event records.
 - Local startup helper, API documentation and security architecture decision.
 
-This is not a functional accounting release. It has no invoices, master-data CRUD, accounting calculations, synchronization, reports, PDFs or backups yet. User creation/editing/password recovery UI is not included; the user directory is read-only. Dexie is installed for the planned offline work; no draft/outbox behavior is claimed.
+## Implemented: master data
+
+- Protected list/create/update APIs and bilingual screens for products, customers, suppliers, container types, payment methods and expense categories.
+- Paginated prefix search, active filtering and deactivation instead of deletion.
+- Positive decimal prices, enforced spice/honey units, normalized unique customer phone lookup and protected walk-in customer.
+- Transactional default-payment changes, optimistic version checks and before/after audit records.
+- User-scoped IndexedDB form drafts, explicit discard, duplicate-customer selection and safe error messages.
+
+This is not a functional accounting release. It has no invoices, accounting calculations, synchronization, reports, PDFs or backups yet. User creation/editing/password recovery UI is not included; the user directory is read-only. Master-data drafts are implemented; offline write queues and invoice drafts are not.
 
 ## Next milestones
 
 1. Remaining foundation: generated OpenAPI and user administration/password recovery workflows.
-2. Master data: products, customers/normalized phone matching, suppliers, container types, payment methods and expense categories.
+2. Invoice integration of master data: inline customer/supplier creation and reference caching for offline entry.
 3. Purchases and inventory: server numbering, transactional WAC/stock movements, partial payment, audit and concurrency tests.
 4. Supplier payments: bounded allocation and oldest-first settlement.
 5. Sales invoices: mixed items, explicit money/weight choice, durable local drafts, user-scoped outbox, backend idempotency and dependency-aware synchronization.
@@ -47,3 +55,9 @@ Database integration checks use isolated PostgreSQL Testcontainers. PWA installa
 - Frontend: 6 login, language, network-failure, logout, permission and reauthentication tests passed.
 - Lint and production build are checked alongside tests.
 - Tests provision only disposable test accounts. No persistent development or production admin credentials were created.
+
+## Master-data verification — 2026-09-22
+
+- Backend Maven verify passed: 15 tests, including PostgreSQL migration, duplicate phone, version conflict, payment-default, audit and permission scenarios.
+- Frontend lint, 9 tests and production PWA build passed. Draft remount/recovery uses a test IndexedDB implementation.
+- This verification did not include a real browser/device visual or PWA installation check.

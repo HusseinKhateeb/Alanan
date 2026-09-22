@@ -69,6 +69,70 @@ class AuthenticationIntegrationTest {
         return id;
     }
 
+    JsonNode createReference(String kind, String body, String token) throws Exception {
+        return json.readTree(mvc.perform(post("/api/" + kind).header("Authorization", "Bearer " + token)
+            .contentType("application/json").content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+    }
+    @Test void productValidationAndDecimalPrecisionAreEnforced() throws Exception {
+        String token = ownerToken();
+        var product = createReference("products", "{\"name\":\"Spice\",\"code\":\"S-" + UUID.randomUUID() + "\",\"category\":\"SPICE\",\"trackingType\":\"WEIGHT\",\"price\":\"45.25\",\"active\":true,\"version\":0}", token);
+        assertThat(product.get("default_selling_price").asText()).isEqualTo("45.25");
+        assertThat(product.has("current_wac")).isFalse();
+        mvc.perform(post("/api/products").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content("{\"name\":\"Invalid\",\"code\":\"bad\",\"category\":\"SPICE\",\"trackingType\":\"PIECE\",\"price\":\"4\",\"active\":true,\"version\":0}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("INVALID_TRACKING_TYPE"));
+        mvc.perform(post("/api/products").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content("{\"name\":\"Invalid\",\"price\":\"4.123\",\"active\":true,\"version\":0}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("fieldErrors.price").exists());
+    }
+    @Test void phoneLookupFindsDuplicatesAndWalkInIsProtected() throws Exception {
+        String token = ownerToken();
+        String phone = "0599" + String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
+        createReference("customers", "{\"name\":\"Customer\",\"phone\":\"" + phone + "\",\"active\":true,\"version\":0}", token);
+        mvc.perform(post("/api/customers").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content("{\"name\":\"Duplicate\",\"phone\":\"(" + phone.substring(0,4) + ") " + phone.substring(4) + "\",\"active\":true,\"version\":0}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("CUSTOMER_PHONE_EXISTS"));
+        mvc.perform(get("/api/customers").param("phone", phone).header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items[0].name").value("Customer"));
+        createReference("customers", "{\"name\":\"Without phone\",\"active\":true,\"version\":0}", token);
+        mvc.perform(put("/api/customers/00000000-0000-0000-0000-000000000001").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"Renamed\",\"active\":false,\"version\":0}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("WALK_IN_PROTECTED"));
+    }
+    @Test void referenceEditsAreVersionedAndAudited() throws Exception {
+        String token = ownerToken();
+        for (String kind : new String[]{"suppliers", "container-types", "expense-categories"}) {
+            String name = "Reference-" + UUID.randomUUID();
+            String body = "{\"name\":\"" + name + "\",\"price\":\"1.50\",\"active\":true,\"version\":0}";
+            var record = createReference(kind, body, token);
+            String path = "/api/" + kind + "/" + record.get("id").asText();
+            mvc.perform(put(path).header("Authorization", "Bearer " + token).contentType("application/json").content(body.replace("true", "false")))
+                .andExpect(status().isOk()).andExpect(jsonPath("version").value(1)).andExpect(jsonPath("active").value(false));
+            mvc.perform(put(path).header("Authorization", "Bearer " + token).contentType("application/json").content(body))
+                .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("EDIT_CONFLICT"));
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM master_data_audit WHERE entity_id=?", Integer.class, record.get("id").asText())).isEqualTo(2);
+        }
+    }
+    @Test void paymentDefaultRemainsUniqueAndActive() throws Exception {
+        String token = ownerToken();
+        var method = createReference("payment-methods", "{\"name\":\"Payment-" + UUID.randomUUID() + "\",\"active\":true,\"isDefault\":true,\"version\":0}", token);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM payment_methods WHERE is_default AND active", Integer.class)).isEqualTo(1);
+        mvc.perform(put("/api/payment-methods/" + method.get("id").asText()).header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"Invalid\",\"active\":false,\"isDefault\":true,\"version\":0}"))
+            .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM payment_methods WHERE is_default AND active", Integer.class)).isEqualTo(1);
+        // Restore the seeded default for the existing bootstrap assertion.
+        jdbc.update("UPDATE payment_methods SET is_default=false WHERE is_default");
+        jdbc.update("UPDATE payment_methods SET is_default=true WHERE name='Cash'");
+    }
+    @Test void employeeCanReadSalesReferencesButCannotModifyOrReadSuppliers() throws Exception {
+        employee(); String token = login("employee", PASSWORD).get("accessToken").asText();
+        mvc.perform(get("/api/products").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+        mvc.perform(get("/api/suppliers").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/customers").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content("{\"name\":\"Blocked\",\"active\":true,\"version\":0}"))
+            .andExpect(status().isForbidden());
+    }
     @Test void migrationsAndBootstrapCreateHashedAdminOnce() throws Exception {
         String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE username='owner'", String.class);
         assertThat(hash).isNotEqualTo(PASSWORD);

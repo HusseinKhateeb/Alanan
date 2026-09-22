@@ -1,6 +1,6 @@
 # Alanan · محمص العنان
 
-Accounting and business management for Al Anan Roastery. The foundation and authentication are implemented; accounting workflows are next. See [implementation status](docs/implementation-status.md) and the [authentication design](docs/decisions/0002-authentication.md).
+Accounting and business management for Al Anan Roastery. Authentication and master-data management are implemented; purchase and sales workflows are next. See [implementation status](docs/implementation-status.md), the [authentication design](docs/decisions/0002-authentication.md), and [master-data API](docs/api/master-data.md).
 
 ## Repository
 
@@ -61,6 +61,16 @@ mvn --batch-mode --no-transfer-progress verify
 Backend tests use Testcontainers and need Docker running. They create an isolated PostgreSQL database, apply Flyway migrations and verify bootstrap, login, capability restrictions, live permission changes, inactive accounts, expired/invalid tokens, logout and language persistence. They do not modify your development database.
 
 If Maven was downloaded by the initial setup, the ignored local copy is available at `.tools/apache-maven-3.9.11/bin/mvn.cmd`; it is a convenience, not a committed dependency. In CI, Maven is supplied by the runner.
+
+## Master-data screens
+
+After signing in, use the workspace links for Products, Customers, Suppliers, Container types, Payment methods and Expense categories. Admins can add/edit records and deactivate them using the Active checkbox. Employee access follows workflow capabilities; employees cannot edit reference data through these management screens.
+
+Products enforce kg for spices and pieces for honey. Phone numbers are optional for customers; formatted duplicates offer selection of the existing customer. The walk-in customer is protected. To deactivate the default payment method, first set another active method as default.
+
+Form drafts are stored in IndexedDB per user and survive closing the form or signing in again. Saving still requires a backend connection; these forms do not queue offline writes. Stale edits are rejected with a conflict message. Draft discard is explicit; no accounting history is deleted.
+
+The new Flyway migration runs automatically on backend startup. Backend verification uses disposable PostgreSQL containers; frontend verification includes IndexedDB draft recovery tests.
 
 ## Configuration and data safety
 

@@ -33,6 +33,15 @@ public class ApiExceptionHandler {
     ResponseEntity<?> forbidden(HttpServletRequest request) {
         return ResponseEntity.status(403).body(errors.body(request, 403, "FORBIDDEN", Map.of()));
     }
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    ResponseEntity<?> integrity(org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
+        Throwable cause = ex.getMostSpecificCause();
+        boolean duplicate = cause instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState());
+        String code = duplicate ? (request.getRequestURI().startsWith("/api/customers") ? "CUSTOMER_PHONE_EXISTS" : "DUPLICATE_RECORD") : "VALIDATION_FAILED";
+        int status = duplicate ? 409 : 400;
+        return ResponseEntity.status(status).body(errors.body(request, status, code,
+            "CUSTOMER_PHONE_EXISTS".equals(code) ? Map.of("phone", "errors.CUSTOMER_PHONE_EXISTS") : Map.of()));
+    }
     @ExceptionHandler(Exception.class)
     ResponseEntity<?> unexpected(Exception ex, HttpServletRequest request) {
         // Do not log exception messages that may contain credentials or SQL parameters.

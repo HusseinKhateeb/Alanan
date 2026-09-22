@@ -34,6 +34,9 @@ public class SecurityConfiguration {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/language", "/api/users").authenticated()
+                .requestMatchers("/api/products", "/api/products/*", "/api/customers", "/api/customers/*",
+                    "/api/suppliers", "/api/suppliers/*", "/api/container-types", "/api/container-types/*",
+                    "/api/payment-methods", "/api/payment-methods/*", "/api/expense-categories", "/api/expense-categories/*").authenticated()
                 .anyRequest().denyAll())
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, e) -> errors.write(req, res, 401, "UNAUTHENTICATED"))
