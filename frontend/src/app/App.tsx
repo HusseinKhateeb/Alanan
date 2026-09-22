@@ -3,15 +3,21 @@ import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes } from 'react-router-dom'
 import { checkBackend } from '../api/health'
 import { UpdateNotice } from './pwa/UpdateNotice'
+import { AuthProvider, useAuth } from '../auth/AuthProvider'
+import { LoginPage } from '../auth/LoginPage'
+import { AccountControls } from '../auth/AccountControls'
+import { UserDirectoryPage } from '../features/users/UserDirectoryPage'
 
 function Workspace() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const health = useQuery({ queryKey: ['backend-health'], queryFn: checkBackend,
     refetchInterval: 60_000, retry: false })
   return <main id="main">
     <div className="eyebrow">{t('workspace')}</div>
     <h1>{t('welcome')}</h1>
     <p className="intro">{t('intro')}</p>
+    {user?.permissions.includes('USERS_MANAGE') && <Link className="directory-link" to="/users">{t('auth.users')}</Link>}
     <section className="setup" aria-labelledby="foundation-title">
       <div className="setup-icon" aria-hidden="true">A</div>
       <div><h2 id="foundation-title">{t('foundation')}</h2><p>{t('notice')}</p></div>
@@ -29,16 +35,18 @@ function Workspace() {
 }
 
 export function App() {
-  const { t, i18n } = useTranslation()
+  return <AuthProvider><AuthenticatedApp /></AuthProvider>
+}
+
+function AuthenticatedApp() {
+  const { t } = useTranslation()
+  const { user } = useAuth()
   return <>
     <header className="header"><Link className="brand" to="/">
       <img src="/icon.svg" alt="" width="44" height="44" />
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
-    </Link><div className="languages" aria-label={t('language')}>
-      <button lang="ar" aria-pressed={i18n.language === 'ar'} onClick={() => void i18n.changeLanguage('ar')}>العربية</button>
-      <button lang="en" aria-pressed={i18n.language === 'en'} onClick={() => void i18n.changeLanguage('en')}>English</button>
-    </div></header>
-    <Routes><Route path="/" element={<Workspace />} /><Route path="*" element={<main><h1>{t('notFound')}</h1><Link to="/">{t('home')}</Link></main>} /></Routes>
+    </Link><AccountControls /></header>
+    {user ? <Routes><Route path="/" element={<Workspace />} /><Route path="/users" element={<UserDirectoryPage />} /><Route path="*" element={<main><h1>{t('notFound')}</h1><Link to="/">{t('home')}</Link></main>} /></Routes> : <LoginPage />}
     <UpdateNotice />
   </>
 }

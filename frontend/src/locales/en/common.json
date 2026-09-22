@@ -21,5 +21,32 @@
   "update": "A new version is available.",
   "updateAction": "Update app",
   "notFound": "This page does not exist.",
-  "home": "Back to workspace"
+  "home": "Back to workspace",
+  "auth": {
+    "loginTitle": "Welcome back",
+    "loginIntro": "Sign in to your Alanan workspace.",
+    "username": "Username",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "signOut": "Sign out of all sessions",
+    "setupHelp": "Need access? Ask your system administrator to set up your account.",
+    "expired": "Your session has expired. Sign in again to continue.",
+    "users": "User directory",
+    "loading": "Loading users…",
+    "active": "Active",
+    "inactive": "Inactive",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "errors": {
+    "INVALID_CREDENTIALS": "The username or password is incorrect, or the account is inactive.",
+    "LOGIN_RATE_LIMITED": "Too many sign-in attempts. Wait five minutes before trying again.",
+    "UNAUTHENTICATED": "Please sign in again to continue.",
+    "FORBIDDEN": "You do not have permission to access this page.",
+    "VALIDATION_FAILED": "Check the highlighted fields and try again.",
+    "INVALID_FIELD": "Enter a valid value for this field.",
+    "NETWORK_ERROR": "The server could not be reached. Check your connection and try again.",
+    "SERVER_ERROR": "The server could not complete this request. Your entries are still here; try again shortly."
+  }
 }

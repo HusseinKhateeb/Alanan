@@ -1,4 +1,21 @@
 :root { font-family: "Segoe UI", Tahoma, sans-serif; color: #23382f; background: #f5f4ef; font-synthesis: none; line-height: 1.6; }
+.account-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.account-name { font-size: 14px; }
+.login-page { max-width: 520px; }
+.login-card { padding: 32px; background: #fffef9; border: 1px solid #dce1d8; border-radius: 18px; }
+.login-card h1 { font-size: 32px; }
+.login-card form { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+.login-card input { font: inherit; width: 100%; padding: 12px; border: 1px solid #9daa9f; border-radius: 8px; background: white; color: inherit; min-height: 48px; }
+.login-card input:focus-visible { outline: 3px solid #a16920; outline-offset: 2px; }
+.login-card label { font-weight: 600; }
+.primary-button { color: #fff; background: #213d32; margin-top: 12px; }
+.login-help { font-size: 13px; color: #617067; margin-top: 24px; }
+.error, .field-error { color: #9c2c24; }
+.field-error { font-size: 13px; }
+.directory-link { display: inline-block; margin-bottom: 24px; }
+.user-list { display: grid; gap: 12px; }
+.user-list article { display: flex; gap: 16px; flex-wrap: wrap; padding: 20px; background: #fffef9; border: 1px solid #dce1d8; border-radius: 12px; }
+.pagination { display: flex; gap: 16px; margin-top: 24px; }
 * { box-sizing: border-box; }
 body { margin: 0; }
 button, a { -webkit-tap-highlight-color: transparent; }

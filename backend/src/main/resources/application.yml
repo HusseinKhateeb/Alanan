@@ -1,3 +1,10 @@
+app:
+  auth:
+    jwt-secret: ${JWT_SECRET}
+  bootstrap:
+    enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+    username: ${BOOTSTRAP_ADMIN_USERNAME:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 spring:
   application:
     name: alanan-accounting
@@ -16,6 +23,10 @@ server:
     include-message: never
     include-stacktrace: never
     include-binding-errors: never
+logging:
+  level:
+    org.springframework.web: INFO
+    org.springframework.jdbc: INFO
 management:
   endpoints:
     web:
