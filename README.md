@@ -94,13 +94,29 @@ Restart the backend to apply Flyway V6. Admins and employees can open **New sale
 
 Sales save invoice, payment facts, stock movements, cost snapshots and audit records together. Negative calculated stock is allowed with a warning. Anonymous containers record revenue without deducting any specific spice or inventing cost. **Sales invoices** and **Customer balances** are available from the workspace. Cost details require COST_VIEW.
 
-Drafts survive refresh/relogin. After an uncertain response, use **Retry the same sale**. Automatic synchronization, sale editing/refunds and PDF exports are not implemented. See [sales API](docs/api/sales.md) and [sales decisions](docs/decisions/0005-sales-transactions.md).
+Drafts survive refresh/relogin. Choose **Queue sale** to save a completed sale locally and synchronize it automatically while connected and signed in. Use the sync panel for status, retries and validation corrections. Completed-sale editing/refunds and PDF exports are not implemented. See [sales API](docs/api/sales.md) and [sales decisions](docs/decisions/0005-sales-transactions.md).
 
 ## Customer payments
 
 Restart the backend to apply V7, then sign in again. Admins can use **New customer payment** to settle a named customer balance manually or oldest-invoice-first. Overpayments and duplicate retries are prevented. Inactive customers can settle debt; walk-in customers cannot receive standalone payments.
 
 Customer balances and sales statuses update together. Sales details show the original payment separately from later allocations, and **Customer payment history** lists standalone payments. Drafts survive refresh/relogin and offer manual retry after uncertain outcomes. See [customer-payment API](docs/api/customer-payments.md).
+
+## Offline sales
+
+Sign in online and expand **Offline sales and synchronization**. Wait for the cache-ready timestamp, or choose **Refresh offline records**. Products/prices, customers, container types and payment methods are cached per user. If the connection fails, selectors use cached records and display their age.
+
+Choose **Queue sale** to persist a completed sale before sending. You can start another sale while it is pending. The panel shows Pending, Syncing, Synced or Needs attention, with server explanations and retry actions. Validation-rejected entries can be reopened for correction; finish any other unsaved draft first.
+
+Synchronization resumes on reconnect and runs while the app is open and signed in. After reopening or session expiry, reconnect and sign in; tokens are not saved locally. Queued sales survive refresh/restart, but clearing browser storage removes local work. Other workflows retain manual save/retry. Offline customer creation and service-worker background submission are not included. See [offline decisions and acceptance limits](docs/decisions/0006-offline-sales.md).
+
+## Expenses and waste
+
+Restart the backend to apply V8. Admins can open **Expenses** or **Waste records** from the workspace, create entries, and filter history by inclusive date range and category/product. Create an expense category in business records before entering the first expense.
+
+Expenses record category, amount, payment method and notes. Waste records product, quantity and reason, reduces calculated stock and preserves current cost without changing WAC. Piece quantities must be whole. Negative stock produces a warning; unknown cost remains unknown. Cost visibility requires COST_VIEW.
+
+These forms preserve drafts and exact submitted requests for manual retry. They are not automatically synchronized by the sales outbox. Editing/reversal and exports remain future work. See [expense/waste API](docs/api/expenses-and-waste.md) and [transaction decisions](docs/decisions/0007-expenses-and-waste.md).
 
 ## Configuration and data safety
 
@@ -109,3 +125,5 @@ Only `.env.example` templates belong in Git. All `VITE_*` values are public. Fro
 Production uses explicit database environment values and the `prod` Spring profile. Secrets must be injected by the deployment environment. Local Compose credentials must not be reused in production. There is no production deployment or backup workflow yet.
 
 CI builds/tests both applications and lints the frontend. No commits or deployments are automatically made by local setup.
+
+If backend port 8080 is occupied, set `SERVER_PORT=8081` in the root `.env`. The development helper and Vite proxy both use it. Restart both processes after changing this value; health then uses `http://localhost:8081/actuator/health`.

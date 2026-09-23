@@ -6,7 +6,7 @@ Use BigDecimal on the server and integer-scaled BigInt previews in the browser. 
 
 Sales lock product rows in UUID order, matching purchases. The transaction changes stock, freezes WAC/cost snapshots, assigns a counter-based invoice number and records audit data. Failure rolls back all effects. Anonymous containers have no product or stock effect and retain unknown cost. Negative calculated stock is allowed with a persisted warning because inventory is approximate. Sales do not recalculate WAC.
 
-Same-user request-key locking and payload fingerprints serialize duplicate retries. Durable browser drafts freeze the submitted payload before POST; uncertain outcomes are retried unchanged. No background submission is claimed. Product units cannot change after either purchase or sale history.
+Same-user request-key locking and payload fingerprints serialize duplicate retries. Durable browser drafts freeze the submitted payload before POST; uncertain outcomes are retried unchanged. The later [offline-sales milestone](0006-offline-sales.md) adds an explicit outbox and automatic submission while the authenticated app is open. Product units cannot change after either purchase or sale history.
 
 Sales details omit cost fields for users without COST_VIEW. JWT and current database capabilities remain authoritative on every request. User-scoped drafts and query keys avoid sharing another user's unsaved work.
 

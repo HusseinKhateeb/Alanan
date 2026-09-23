@@ -3,7 +3,7 @@ param([switch]$BootstrapAdmin)
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $localEnvPath = Join-Path $repoRoot '.env'
-$environmentNames = @('DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'JWT_SECRET', 'SPRING_PROFILES_ACTIVE', 'BOOTSTRAP_ADMIN_ENABLED', 'BOOTSTRAP_ADMIN_USERNAME', 'BOOTSTRAP_ADMIN_PASSWORD')
+$environmentNames = @('SERVER_PORT', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'JWT_SECRET', 'SPRING_PROFILES_ACTIVE', 'BOOTSTRAP_ADMIN_ENABLED', 'BOOTSTRAP_ADMIN_USERNAME', 'BOOTSTRAP_ADMIN_PASSWORD')
 $previousEnvironment = @{}
 foreach ($name in $environmentNames) { $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 

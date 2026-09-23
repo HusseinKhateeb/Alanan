@@ -1,8 +1,14 @@
+import { loadEnv } from 'vite'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const rootEnv = loadEnv(mode, fileURLToPath(new URL('..', import.meta.url)), 'SERVER_PORT')
+  const backendPort = process.env.SERVER_PORT || rootEnv.SERVER_PORT || '8080'
+  const backendTarget = `http://localhost:${backendPort}`
+  return {
   plugins: [react(), VitePWA({
     registerType: 'prompt',
     includeAssets: ['icon.svg', 'apple-touch-icon.png'],
@@ -28,8 +34,9 @@ export default defineConfig({
     },
   })],
   server: { proxy: {
-    '/api': 'http://localhost:8080',
-    '/actuator': 'http://localhost:8080',
+    '/api': backendTarget,
+    '/actuator': backendTarget,
   } },
   test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'], css: false },
+  }
 })

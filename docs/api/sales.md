@@ -34,6 +34,6 @@ Null customer selects the active walk-in customer. Walk-in sales must be fully p
 
 One transaction creates the numbered invoice, item snapshots, payment facts, stock movements and audit entry. Product sales deduct quantity and freeze current WAC and cost total. Unknown cost remains null. Containers never select a spice, deduct stock or invent cost. Negative stock is allowed, returned as a warning and recorded in audit. Cost fields are omitted entirely for users without COST_VIEW.
 
-The request UUID is scoped to the authenticated user. An identical retry returns the saved receipt; changed content with the same key returns 409 IDEMPOTENCY_CONFLICT. Browser drafts are user-scoped and persist the immutable request before sending it. Retry is manual; automatic offline synchronization is not implemented.
+The request UUID is scoped to the authenticated user. An identical retry returns the saved receipt; changed content with the same key returns 409 IDEMPOTENCY_CONFLICT. Browser drafts are user-scoped and persist the immutable request before sending it. Completed sales can be queued for automatic synchronization while the app is open and signed in. See [offline decisions](../decisions/0006-offline-sales.md).
 
 After V7, `paid` is cumulative and `paid_at_sale` preserves the original payment. Sale details include later payment allocations in `payments`.

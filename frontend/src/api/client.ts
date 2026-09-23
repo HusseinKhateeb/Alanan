@@ -1,14 +1,21 @@
 let accessToken: string | null = null
-export function setAccessToken(token: string | null) { accessToken = token }
+let tokenOwner: string | null = null
+export function setAccessToken(token: string | null, userId: string | null = null) { accessToken = token; tokenOwner = token ? userId : null }
+export function hasSessionFor(userId: string) { return !!accessToken && tokenOwner === userId }
+export function apiForUser<T>(userId: string, path: string, options: RequestInit = {}): Promise<T> {
+  if (!hasSessionFor(userId)) return Promise.reject(new ApiError('UNAUTHENTICATED', {}, 401))
+  return api<T>(path, options)
+}
 
 export class ApiError extends Error {
   constructor(public code: string, public fieldErrors: Record<string, string> = {}, public status = 0) { super(code) }
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const requestToken = accessToken
   const headers = new Headers(options.headers)
   if (options.body) headers.set('Content-Type', 'application/json')
-  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
+  if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`)
   let response: Response
   try {
     response = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}${path}`, {
@@ -17,7 +24,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   } catch { throw new ApiError('NETWORK_ERROR') }
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { errorCode?: string; fieldErrors?: Record<string, string> }
-    if (response.status === 401 && path !== '/auth/login') {
+    if (response.status === 401 && path !== '/auth/login' && accessToken === requestToken) {
       setAccessToken(null)
       window.dispatchEvent(new Event('alanan:unauthenticated'))
     }

@@ -1,28 +1,32 @@
+import { liveQuery } from 'dexie'
+import { enqueueSale, retrySale, syncSales } from '../offline/outbox'
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthProvider'
-import { api, ApiError } from '../../api/client'
+import { ApiError } from '../../api/client'
 import { localDrafts } from '../../db/masterDataDrafts'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import { SaleLineEditor } from './SaleLineEditor'
 import { newItem, newSale, saveSaleDraft, toRequest } from './drafts'
 import { preview } from './calculations'
 import { useFormUpdateGuard } from '../../app/pwa/formUpdateGuard'
-import type { SaleDraft, SaleReceipt } from './types'
+import type { SaleDraft } from './types'
 
 export function NewSalePage() {
   const { user } = useAuth()
   const { t } = useTranslation()
+  const [params] = useSearchParams()
   if (!user?.permissions.includes('SALES_CREATE')) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
-  return <SaleEditor key={user.id} userId={user.id} />
+  return <SaleEditor key={user.id + (params.get('edit') ?? '')} userId={user.id} />
 }
 function SaleEditor({ userId }: { userId: string }) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const client = useQueryClient()
   const [draft, setDraft] = useState<SaleDraft | null>(null)
+  const [queued, setQueued] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [storageFailed, setStorageFailed] = useState(false)
@@ -34,13 +38,20 @@ function SaleEditor({ userId }: { userId: string }) {
         const stored = await localDrafts.saleDrafts.get(userId)
         const value = stored?.draft ?? newSale()
         if (!stored) await saveSaleDraft(userId, value)
-        if (current) setDraft(value)
+        if (current) { setDraft(value); setQueued(!!(await localDrafts.outbox.get(userId + ':' + value.requestId))) }
       } catch { if (current) setStorageFailed(true) }
     }
     void load()
     return () => { current = false }
   }, [userId])
 
+  useEffect(() => {
+    if (!draft?.submitted) return
+    const subscription = liveQuery(() => localDrafts.outbox.get(userId + ':' + draft.requestId)).subscribe(row => {
+      if (row?.receipt) setDraft(current => current?.requestId === row.request.requestId ? { ...current, receipt: row.receipt } : current)
+    })
+    return () => subscription.unsubscribe()
+  }, [userId, draft?.requestId, draft?.submitted])
   function update(next: SaleDraft) {
     setDraft(next)
     void saveSaleDraft(userId, next).then(() => setStorageFailed(false)).catch(() => setStorageFailed(true))
@@ -49,35 +60,23 @@ function SaleEditor({ userId }: { userId: string }) {
     event.preventDefault()
     if (!draft || busy) return
     setBusy(true); setError(null)
-    let submitted = draft.submitted
     try {
-      submitted ??= toRequest(draft)
-      const pending = { ...draft, submitted }
-      // Durable write MUST complete before any accounting request leaves this device.
-      await saveSaleDraft(userId, pending)
-      setDraft(pending); setStorageFailed(false)
-      const receipt = await api<SaleReceipt>('/sales', { method: 'POST', body: JSON.stringify(submitted) })
-      const complete = { ...pending, receipt }
-      setDraft(complete)
-      await saveSaleDraft(userId, complete).catch(() => setStorageFailed(true))
-      void client.invalidateQueries({ queryKey: ['sales'] })
-      void client.invalidateQueries({ queryKey: ['customer-balances'] })
-      void client.invalidateQueries({ queryKey: ['inventory'] })
+      const submitted = draft.submitted ?? toRequest(draft)
+      const queuedKey = await enqueueSale(userId, draft)
+      setDraft({ ...draft, submitted }); setQueued(true); setStorageFailed(false)
+      await retrySale(userId, queuedKey)
+      await syncSales(userId)
+      const saved = await localDrafts.outbox.get(userId + ':' + draft.requestId)
+      if (saved?.receipt) setDraft({ ...draft, submitted, receipt: saved.receipt })
+      for (const key of ['sales', 'customer-balances', 'inventory']) void client.invalidateQueries({ queryKey: [key] })
     } catch (failure) {
-      if (failure instanceof ApiError) {
-        setError(failure)
-        if (failure.status === 400 || failure.status === 403) {
-          const editable = { ...draft, submitted: undefined }
-          await saveSaleDraft(userId, editable).catch(() => setStorageFailed(true))
-          setDraft(editable)
-        }
-      } else if (failure instanceof Error && failure.message === 'SALE_REFERENCE_REQUIRED') {
-        setError(new ApiError('SALE_REFERENCE_REQUIRED'))
-      } else { setStorageFailed(true) }
+      if (failure instanceof ApiError) setError(failure)
+      else if (failure instanceof Error && failure.message === 'SALE_REFERENCE_REQUIRED') setError(new ApiError(failure.message))
+      else setStorageFailed(true)
     } finally { setBusy(false) }
   }
   async function startNew() {
-    try { const next = newSale(); await saveSaleDraft(userId, next); setDraft(next); setError(null); setStorageFailed(false) }
+    try { const next = newSale(); await saveSaleDraft(userId, next); setDraft(next); setQueued(false); setError(null); setStorageFailed(false) }
     catch { setStorageFailed(true) }
   }
   const locked = busy || !!draft?.submitted
@@ -94,7 +93,8 @@ function SaleEditor({ userId }: { userId: string }) {
       {user?.permissions.includes('SALES_VIEW') && <Link to={'/sales/' + draft.receipt.id}>{t('purchase.view')}</Link>}
       <button onClick={() => void startNew()}>{t('sales.another')}</button>
     </section> : draft && <>
-      <p>{t('sales.draftNotice')}</p>
+      <p>{t('offline.draftNotice')}</p>
+      {queued && <section role="status"><p>{t('offline.queued')}</p><button disabled={busy} onClick={() => void startNew()}>{t('sales.another')}</button></section>}
       {draft.submitted && <p role="status" className="duplicate">{t('sales.pendingRetry')}</p>}
       <p>{t('sales.walkInHelp')}</p>
       <form onSubmit={submit}>
@@ -119,7 +119,7 @@ function SaleEditor({ userId }: { userId: string }) {
         {totals?.overpaid && <p role="alert" className="error">{t('errors.PAYMENT_EXCEEDS_TOTAL')}</p>}
         <div className="purchase-save-bar">
           <div><strong>{t('purchase.total')}: {totals?.total ?? '—'} ₪</strong><span>{t('purchase.outstanding')}: {totals?.outstanding ?? '—'} ₪</span></div>
-          <button className="primary-button" disabled={busy || (!draft.submitted && (!totals || totals.overpaid || draft.items.some(item => !item.reference) || ((!draft.customer || draft.customer.is_walk_in) && totals.outstanding !== '0.00')))}>{t(busy ? 'master.saving' : draft.submitted ? 'sales.retry' : 'sales.save')}</button>
+          <button className="primary-button" disabled={busy || (!draft.submitted && (!totals || totals.overpaid || draft.items.some(item => !item.reference) || ((!draft.customer || draft.customer.is_walk_in) && totals.outstanding !== '0.00')))}>{t(busy ? 'master.saving' : draft.submitted ? 'sales.retry' : 'offline.save')}</button>
         </div>
       </form>
     </>}

@@ -83,7 +83,7 @@ public class MasterDataService {
 
         var values = values(catalog, input);
         if (catalog == Catalog.PRODUCTS && before != null && !Objects.equals(before.get("tracking_type"),input.trackingType())
-            && Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM purchase_items WHERE product_id=?) OR EXISTS(SELECT 1 FROM sale_items WHERE product_id=?)",Boolean.class,id,id)))
+            && Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM purchase_items WHERE product_id=?) OR EXISTS(SELECT 1 FROM sale_items WHERE product_id=?) OR EXISTS(SELECT 1 FROM waste_records WHERE product_id=?)",Boolean.class,id,id,id)))
             fail("PRODUCT_UNIT_LOCKED");
         if (catalog == Catalog.PAYMENTS) {
             boolean requestedDefault = Boolean.TRUE.equals(input.isDefault());

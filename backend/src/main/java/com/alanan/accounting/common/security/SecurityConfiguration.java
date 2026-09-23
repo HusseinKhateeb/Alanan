@@ -35,6 +35,7 @@ public class SecurityConfiguration {
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/language", "/api/users").authenticated()
                 .requestMatchers("/api/purchases", "/api/purchases/*", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements").authenticated()
+                .requestMatchers("/api/expenses", "/api/expenses/*", "/api/waste", "/api/waste/*").authenticated()
                 .requestMatchers("/api/customer-payments", "/api/customer-payments/*").authenticated()
                 .requestMatchers("/api/supplier-payments", "/api/supplier-payments/*").authenticated()
                 .requestMatchers("/api/sales", "/api/sales/*", "/api/customer-balances").authenticated()

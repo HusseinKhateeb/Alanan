@@ -1,20 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api } from '../../api/client'
+import { api, ApiError } from '../../api/client'
+import { cachedReferencePage, offlineKinds } from '../offline/references'
 import { useAuth } from '../../auth/AuthProvider'
 import { useDebounced } from '../masterdata/useDebounced'
 import type { ReferenceRecord, ReferencePage } from '../masterdata/catalogs'
 
-interface Props { kind: 'products' | 'suppliers' | 'payment-methods' | 'customers' | 'container-types'; id: string; value: ReferenceRecord | null; disabled: boolean; activeOnly?: boolean; excludeWalkIn?: boolean; onChange: (value: ReferenceRecord | null) => void }
+interface Props { kind: 'products' | 'suppliers' | 'payment-methods' | 'customers' | 'container-types' | 'expense-categories'; id: string; value: ReferenceRecord | null; disabled: boolean; activeOnly?: boolean; excludeWalkIn?: boolean; onChange: (value: ReferenceRecord | null) => void }
 export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true, excludeWalkIn = false, onChange }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const query = useDebounced(search)
-  const data = useQuery({ queryKey: ['purchase-reference', user!.id, kind, query, page, activeOnly],
-    queryFn: () => api<ReferencePage>(`/${kind}?activeOnly=${activeOnly}&q=${encodeURIComponent(query)}&page=${page}`), retry: false })
+  const data = useQuery({ queryKey: ['purchase-reference', user!.id, kind, query, page, activeOnly], networkMode: 'always',
+    queryFn: async (): Promise<ReferencePage & { cached?: boolean; updatedAt?: number }> => {
+      if (navigator.onLine === false && activeOnly && offlineKinds.includes(kind)) return cachedReferencePage(user!.id, kind, query, page)
+      try { return await api<ReferencePage>(`/${kind}?activeOnly=${activeOnly}&q=${encodeURIComponent(query)}&page=${page}`) }
+      catch (failure) {
+        if (activeOnly && offlineKinds.includes(kind) && failure instanceof ApiError && (failure.status === 0 || failure.status >= 500)) return cachedReferencePage(user!.id, kind, query, page)
+        throw failure
+      }
+    }, retry: false })
   const options = (data.data?.items ?? []).filter(item => !excludeWalkIn || !item.is_walk_in)
   useEffect(() => {
     if (kind === 'payment-methods' && !value && !disabled) {
@@ -23,6 +31,7 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
     }
   }, [kind, value, disabled, data.data, onChange])
   return <div className="reference-selector">
+    {data.data?.cached && <p role="status">{t('offline.cached', { date: new Date(data.data.updatedAt!).toLocaleString() })}</p>}
     <label htmlFor={id + '-search'}>{t('purchase.searchReference', { type: t('master.' + kind) })}</label>
     <input id={id + '-search'} value={search} disabled={disabled} type="search" maxLength={200}
       onChange={event => { setSearch(event.target.value); setPage(0) }} />

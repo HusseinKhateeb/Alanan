@@ -1,4 +1,7 @@
+import { OperationEntryPage } from '../features/operations/OperationEntryPage'
+import { OperationHistoryPage } from '../features/operations/OperationHistoryPage'
 import { NewCustomerPaymentPage } from '../features/customerpayments/NewCustomerPaymentPage'
+import { OfflineSales } from '../features/offline/OfflineSales'
 import { PaymentHistoryPage as CustomerPaymentHistoryPage, PaymentDetailPage as CustomerPaymentDetailPage } from '../features/customerpayments/PaymentHistoryPage'
 import { NewSupplierPaymentPage } from '../features/supplierpayments/NewSupplierPaymentPage'
 import { NewSalePage } from '../features/sales/NewSalePage'
@@ -33,6 +36,8 @@ function Workspace() {
     <h1>{t('welcome')}</h1>
     <p className="intro">{t('intro')}</p>
     <nav className="catalog-nav" aria-label={t('purchase.list')}>
+      {user?.permissions.includes('EXPENSES_CREATE') && <Link to="/expenses">{t('operations.expenses')}</Link>}
+      {user?.permissions.includes('INVENTORY_ADJUST') && <Link to="/waste">{t('operations.waste')}</Link>}
       {user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE') && <Link to="/customer-payments/new">{t('customerPayments.new')}</Link>}
       {user?.permissions.includes('SALES_VIEW') && <Link to="/customer-payments">{t('customerPayments.history')}</Link>}
       {user?.permissions.includes('SALES_CREATE') && <Link to="/sales/new">{t('sales.new')}</Link>}
@@ -75,6 +80,8 @@ function AuthenticatedApp() {
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
     </Link><AccountControls /></header>
     {user ? <Routes>
+      <Route path="/expenses" element={<OperationHistoryPage kind="expenses" />} /><Route path="/expenses/new" element={<OperationEntryPage kind="expenses" />} />
+      <Route path="/waste" element={<OperationHistoryPage kind="waste" />} /><Route path="/waste/new" element={<OperationEntryPage kind="waste" />} />
       <Route path="/customer-payments/new" element={<NewCustomerPaymentPage />} /><Route path="/customer-payments" element={<CustomerPaymentHistoryPage />} /><Route path="/customer-payments/:id" element={<CustomerPaymentDetailPage />} />
       <Route path="/sales/new" element={<NewSalePage />} /><Route path="/sales" element={<SaleListPage />} /><Route path="/sales/:id" element={<SaleDetailPage />} /><Route path="/customer-balances" element={<CustomerBalancesPage />} />
       <Route path="/" element={<Workspace />} /><Route path="/master/:catalog" element={<MasterDataPage />} /><Route path="/users" element={<UserDirectoryPage />} />
@@ -83,6 +90,6 @@ function AuthenticatedApp() {
       <Route path="/supplier-balances" element={<SupplierBalancesPage />} /><Route path="/inventory" element={<InventoryPage />} />
       <Route path="*" element={<main><h1>{t('notFound')}</h1><Link to="/">{t('home')}</Link></main>} />
     </Routes> : <LoginPage />}
-    <UpdateNotice />
+    <OfflineSales key={user?.id ?? 'signed-out'} /><UpdateNotice />
   </>
 }

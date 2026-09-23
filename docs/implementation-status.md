@@ -57,15 +57,29 @@
 - ADMIN-only creation, sales-view history, bilingual screens and user-scoped durable retry drafts.
 - Inactive customer settlement; walk-in payments and unallocated credit are rejected.
 
-This is not a completed V1 release. Automatic synchronization, reports, PDFs and backups are not implemented. Historical invoice editing/cancellation remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory.
+## Implemented: offline sales synchronization
+
+- Per-user complete reference snapshots and network-failure fallback with cache-age notices.
+- Durable sales outbox, automatic connected-session retry, multi-tab leases and immutable request IDs.
+- Pending/Syncing/Synced/Needs attention panel, rejected-sale correction and preserved drafts.
+- Memory-only sessions; reopen/session expiry requires online sign-in. No offline customer creation or service-worker background submission.
+
+## Implemented: expenses and waste
+
+- Expense category/payment snapshots and atomic audit records, with inclusive date/category history filters.
+- Waste product/quantity/reason, stock deductions, frozen costs, negative-stock warnings and audit records.
+- Capability restrictions, hidden cost fields, exact-request retries and durable bilingual forms.
+- Waste history filters by dates/product; product units locked after waste history.
+
+This is not a completed V1 release. Automatic synchronization for non-sales workflows, reports, PDFs and backups are not implemented. Historical invoice editing/cancellation remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory.
 
 ## Next milestones
 
 1. Remaining foundation: generated OpenAPI and user administration/password recovery workflows.
 2. Invoice integration of master data: inline customer/supplier creation and reference caching for offline entry.
 3. Inventory valuation extensions: negative-stock reconciliation and safe historical invoice edits.
-4. Sales offline synchronization: reference caching, user-scoped outbox and dependency-aware synchronization.
-5. Expenses/waste, safe editing, reports, Arabic PDFs, backup/restore and production QA.
+4. Offline extensions: customer creation and dependency-aware synchronization, other accounting operations, and real-device acceptance.
+5. Safe editing/reversals, sales/expenses/profit reports, Arabic PDFs, backup/restore and production QA.
 
 Database integration checks use isolated PostgreSQL Testcontainers. PWA installation and offline behavior require browser/device acceptance tests before release.
 
@@ -118,3 +132,17 @@ Database integration checks use isolated PostgreSQL Testcontainers. PWA installa
 - Frontend: 25 tests, ESLint, TypeScript and production PWA build passed.
 - Verified oldest/manual allocation, inactive customer debt, walk-in rejection, concurrent overpayment/retry protection, permissions and original-payment preservation.
 - The production build retains a non-blocking bundle-size warning (about 542 kB before gzip). Real-browser/device acceptance and development-database migration remain pending.
+
+## Offline-sales verification - 2026-09-23
+
+- Frontend: 37 tests passed, including queue recovery, competing-tab claims, exact retries, account/session isolation, reconnect, correction and offline selector behavior.
+- ESLint, TypeScript and production PWA build passed. The existing bundle-size warning remains (about 553 kB before gzip).
+- Backend code was unchanged for this milestone; its last full verification remains 55 passing tests.
+- Real-browser/device PWA acceptance remains pending. No new server migration or dependency is required; IndexedDB upgrades automatically to version 6.
+
+## Expenses/waste verification - 2026-09-23
+
+- Backend Maven verify: 64 tests passed, including 9 expense/waste PostgreSQL integration scenarios with V8.
+- Frontend: 41 tests passed; ESLint, TypeScript and production PWA build passed.
+- Existing production bundle-size warning remains (approximately 563 kB before gzip).
+- Development database migration and real-browser/device acceptance remain pending. Test databases were isolated. No new dependency or environment variable is required.

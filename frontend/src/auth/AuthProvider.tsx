@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const next = await api<Session>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
     if (!next.accessToken || !next.user || !Number.isFinite(Date.parse(next.expiresAt))) throw new ApiError('SERVER_ERROR')
     queryClient.clear()
-    setAccessToken(next.accessToken)
+    setAccessToken(next.accessToken, next.user.id)
     setSession(next)
     setExpired(false)
     await i18n.changeLanguage(next.user.preferredLanguage)

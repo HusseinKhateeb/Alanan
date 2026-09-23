@@ -1,3 +1,4 @@
+import { setAccessToken } from '../../api/client'
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -11,8 +12,8 @@ import { newSale, saveSaleDraft } from './drafts'
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'buyer', permissions: ['SALES_CREATE', 'SALES_VIEW'] } }) }))
 const customer = { id: 'customer', name: 'Supplier', active: true, version: 0 }
 const product = { id: 'spice', name: 'Spice', tracking_type: 'WEIGHT', active: true, version: 0 }
-beforeEach(async () => { await i18n.changeLanguage('en'); await localDrafts.saleDrafts.clear() })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+beforeEach(async () => { await i18n.changeLanguage('en'); await localDrafts.saleDrafts.clear(); await localDrafts.outbox.clear(); setAccessToken('test-token', 'buyer') })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); setAccessToken(null) })
 function mount() {
   return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><NewSalePage /></MemoryRouter></QueryClientProvider>)
 }
@@ -40,7 +41,7 @@ test('persists immutable submitted data and retries the same key after remount',
     return reference(url)
   }))
   const first = mount()
-  fireEvent.click(await screen.findByRole('button', { name: 'Save sale' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Queue sale' }))
   await screen.findByRole('button', { name: 'Retry the same sale' })
   expect((await localDrafts.saleDrafts.get('buyer'))?.draft.submitted?.requestId).toBe(draft.requestId)
   first.unmount()
@@ -52,16 +53,14 @@ test('persists immutable submitted data and retries the same key after remount',
   expect(requests[1]).toBe(requests[0])
   await waitFor(async () => expect((await localDrafts.saleDrafts.get('buyer'))?.draft.receipt?.id).toBe('saved'))
 })
-test('rejected validation unlocks the draft and keeps entered items', async () => {
-  await prepared()
+test('rejected validation preserves the sale as needs attention', async () => {
+  const draft = await prepared()
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url === '/api/sales'
-    ? { ok: false, status: 400, json: async () => ({ errorCode: 'PAYMENT_EXCEEDS_TOTAL' }) } : reference(url)))
+    ? { ok: false, status: 400, json: async () => ({ errorCode: 'PRODUCT_UNAVAILABLE' }) } : reference(url)))
   mount()
-  fireEvent.click(await screen.findByRole('button', { name: 'Save sale' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('Paid now cannot exceed')
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save sale' })).toBeEnabled())
+  fireEvent.click(await screen.findByRole('button', { name: 'Queue sale' }))
+  await waitFor(async () => expect((await localDrafts.outbox.get('buyer:' + draft.requestId))?.status).toBe('NEEDS_ATTENTION'))
   expect((await localDrafts.saleDrafts.get('buyer'))?.draft.items[0].quantity).toBe('10')
-  expect((await localDrafts.saleDrafts.get('buyer'))?.draft.submitted).toBeUndefined()
 })
 
 test('walk-in sale requires full payment before saving', async () => {
@@ -70,7 +69,19 @@ test('walk-in sale requires full payment before saving', async () => {
   await saveSaleDraft('buyer', draft)
   vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
   mount()
-  expect(await screen.findByRole('button', { name: 'Save sale' })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: 'Queue sale' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Pay full total' }))
-  expect(screen.getByRole('button', { name: 'Save sale' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Queue sale' })).toBeEnabled()
+})
+
+test('offline form loads cached references even when network queries would be paused', async () => {
+  for (const kind of ['products', 'customers', 'container-types', 'payment-methods']) {
+    await localDrafts.references.put({ key: 'buyer:' + kind, userId: 'buyer', kind, records: kind === 'products' ? [product] : [], updatedAt: Date.now() })
+  }
+  vi.stubGlobal('navigator', { onLine: false })
+  const fetcher = vi.fn(async () => { throw new TypeError('offline') })
+  vi.stubGlobal('fetch', fetcher)
+  mount()
+  expect(await screen.findByRole('option', { name: 'Spice' })).toBeInTheDocument()
+  expect(fetcher).not.toHaveBeenCalled()
 })

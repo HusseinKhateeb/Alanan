@@ -1,5 +1,7 @@
+import type { OperationDraft } from '../features/operations/types'
 import type { PaymentDraft as CustomerPaymentDraft } from '../features/customerpayments/types'
 import Dexie, { type Table } from 'dexie'
+import type { CachedReferences, QueuedSale } from '../features/offline/types'
 import type { ReferenceInput } from '../features/masterdata/catalogs'
 import type { PurchaseDraft } from '../features/purchases/types'
 import type { PaymentDraft } from '../features/supplierpayments/types'
@@ -12,6 +14,9 @@ class LocalDrafts extends Dexie {
   supplierPaymentDrafts!: Table<{ key: string; draft: PaymentDraft; updatedAt: number }, string>
   saleDrafts!: Table<{ key: string; draft: SaleDraft; updatedAt: number }, string>
   customerPaymentDrafts!: Table<{ key: string; draft: CustomerPaymentDraft; updatedAt: number }, string>
+  references!: Table<CachedReferences, string>
+  outbox!: Table<QueuedSale, string>
+  operationDrafts!: Table<{ key: string; draft: OperationDraft; updatedAt: number }, string>
   constructor() {
     super('alanan')
     this.version(1).stores({ masterDataDrafts: 'key, updatedAt' })
@@ -19,6 +24,8 @@ class LocalDrafts extends Dexie {
     this.version(3).stores({ masterDataDrafts: 'key, updatedAt', purchaseDrafts: 'key, updatedAt', supplierPaymentDrafts: 'key, updatedAt' })
     this.version(5).stores({ masterDataDrafts: 'key, updatedAt', purchaseDrafts: 'key, updatedAt', supplierPaymentDrafts: 'key, updatedAt', saleDrafts: 'key, updatedAt', customerPaymentDrafts: 'key, updatedAt' })
     this.version(4).stores({ masterDataDrafts: 'key, updatedAt', purchaseDrafts: 'key, updatedAt', supplierPaymentDrafts: 'key, updatedAt', saleDrafts: 'key, updatedAt' })
+    this.version(6).stores({ masterDataDrafts: 'key, updatedAt', purchaseDrafts: 'key, updatedAt', supplierPaymentDrafts: 'key, updatedAt', saleDrafts: 'key, updatedAt', customerPaymentDrafts: 'key, updatedAt', references: 'key, userId', outbox: 'key, userId' })
+    this.version(7).stores({ masterDataDrafts: 'key, updatedAt', purchaseDrafts: 'key, updatedAt', supplierPaymentDrafts: 'key, updatedAt', saleDrafts: 'key, updatedAt', customerPaymentDrafts: 'key, updatedAt', references: 'key, userId', outbox: 'key, userId', operationDrafts: 'key, updatedAt' })
   }
 }
 export const localDrafts = new LocalDrafts()

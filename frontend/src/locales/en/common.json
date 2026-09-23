@@ -5,7 +5,7 @@
   "welcome": "A clear start to every day.",
   "intro": "Invoices, purchases and business records, together in one place.",
   "foundation": "Project foundation",
-  "notice": "Sales, purchases, supplier payments and customer balances are available. Automatic synchronization, reports and exports are still pending.",
+  "notice": "Sales, payments and offline sales synchronization are available. Reports and exports are still pending.",
   "next": "What comes next",
   "authTitle": "Secure access",
   "authDetail": "Admin login and employee permissions.",
@@ -167,7 +167,15 @@
     "SALE_INPUT_INVALID": "Enter either a quantity or a requested amount for the selected mode.",
     "SALE_AMOUNT_INVALID": "Amounts are outside the supported range, or the quantity rounds to zero.",
     "WALK_IN_MUST_PAY_FULL": "Walk-in sales must be fully paid. Select a named customer for an unpaid balance.",
-    "PAYMENT_CUSTOMER_REQUIRED": "Select a named customer."
+    "PAYMENT_CUSTOMER_REQUIRED": "Select a named customer.",
+    "OFFLINE_STORAGE_ERROR": "Unable to access local storage. Keep this page open and try again.",
+    "OFFLINE_REFERENCES_MISSING": "No offline records are available. Connect and refresh offline records.",
+    "CACHE_LIMIT": "The reference catalog exceeds the offline cache limit.",
+    "DRAFT_IN_USE": "Finish the current sales draft before editing a different queued sale.",
+    "EXPENSE_CATEGORY_UNAVAILABLE": "Select an active expense category.",
+    "WASTE_AMOUNT_INVALID": "Waste quantity or cost exceeds the supported range.",
+    "INVALID_DATE_RANGE": "The start date must not be after the end date.",
+    "OPERATION_REFERENCE_REQUIRED": "Select an expense category or product before saving."
   },
   "payments": {
     "new": "New supplier payment",
@@ -254,5 +262,46 @@
     "pendingRetry": "Confirmation may be missing. This payment is locked; retry the same request when connected to avoid duplicates.",
     "loadingDraft": "Restoring your payment draft…",
     "initialPayment": "Paid at sale"
+  },
+  "offline": {
+    "title": "Offline sales and synchronization",
+    "PENDING": "Pending",
+    "SYNCING": "Syncing",
+    "SYNCED": "Synced",
+    "NEEDS_ATTENTION": "Needs attention",
+    "cacheReady": "Offline records last refreshed: {{date}}.",
+    "cacheMissing": "Offline records are not ready. Connect and refresh before entering sales offline.",
+    "sessionHelp": "Automatic sync runs while the app is open and you are signed in. After reopening or session expiry, connect and sign in again. Drafts and queued sales stay on this device.",
+    "refresh": "Refresh offline records",
+    "empty": "No queued sales.",
+    "edit": "Edit rejected sale",
+    "cached": "Using offline records from {{date}}. The server validates them when syncing.",
+    "draftNotice": "Drafts stay on this device. Queue a completed sale to save it locally and synchronize automatically when connected.",
+    "queued": "Sale is saved in the queue. You can start another sale. Check Offline sales and synchronization for its status or any required corrections.",
+    "save": "Queue sale"
+  },
+  "operations": {
+    "expenses": "Expenses",
+    "waste": "Waste records",
+    "new": {
+      "expenses": "New expense",
+      "waste": "Record waste"
+    },
+    "loading": "Restoring your draft…",
+    "saved": "Record saved successfully.",
+    "date": "Date",
+    "amount": "Expense amount (₪)",
+    "reason": "Reason for waste",
+    "stockHelp": "Waste reduces calculated stock and preserves the current cost. Negative stock is allowed with a recorded warning.",
+    "draftNotice": "Draft saved on this device. Saving requires a connection; these records are not sent automatically.",
+    "pending": "Confirmation may be missing. This entry is locked; retry the same entry to avoid duplicates.",
+    "retry": "Retry the same entry",
+    "save": "Save entry",
+    "negativeStock": "This waste record left calculated stock below zero. Review physical stock. The warning was recorded.",
+    "cost": "Cost of waste",
+    "filters": "Filter history",
+    "from": "From date",
+    "to": "To date",
+    "clear": "Clear filters"
   }
 }
