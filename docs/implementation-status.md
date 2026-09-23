@@ -26,16 +26,46 @@
 - Transactional default-payment changes, optimistic version checks and before/after audit records.
 - User-scoped IndexedDB form drafts, explicit discard, duplicate-customer selection and safe error messages.
 
-This is not a functional accounting release. It has no invoices, accounting calculations, synchronization, reports, PDFs or backups yet. User creation/editing/password recovery UI is not included; the user directory is read-only. Master-data drafts are implemented; offline write queues and invoice drafts are not.
+## Implemented: purchase invoices, inventory and supplier balances
+
+- Multi-product purchase entry with inline supplier creation for admins, decimal previews, payment selection and partial/full payment.
+- Server numbering, BigDecimal totals, stock movements, six-decimal WAC and atomic audit/payment/allocation effects.
+- Idempotency and stable product locks for safe retry and concurrent saves.
+- Invoice list/details with preserved product/supplier names; derived supplier balances and invoice history.
+- Inventory quantities/movements with WAC/cost capability checks and a physical-stock estimate label.
+- User-scoped durable purchase drafts and immutable submitted requests across reconnect/relogin; manual retry after uncertain outcomes.
+
+## Implemented: supplier payments
+
+- Full manual allocation or oldest-invoice-first settlement, with overpayment rejection.
+- Supplier locking, atomic audit/status/balance changes and idempotent retries.
+- Bilingual entry/history/details, inactive supplier settlement and per-user durable drafts.
+- ADMIN-only creation capability; purchase-view permission for history.
+
+## Implemented: sales
+
+- Mixed weight/piece/container items, explicit weight or money input, exact decimal calculations and per-line price overrides.
+- Atomic numbering, stock deductions, cost snapshots, payment facts and audit records; concurrent retry protection.
+- Named-customer partial payments and derived balances; fully paid walk-in sales.
+- Bilingual entry/list/details, per-user durable drafts, manual retry and negative-stock warnings.
+- Cost fields restricted to COST_VIEW; anonymous containers do not deduct stock.
+
+## Implemented: customer payments
+
+- Manual and oldest-first allocation to named customer sales, with serialized overpayment protection.
+- Cumulative sale paid/status/balance updates, preserved original payment, immutable payment snapshots and audit records.
+- ADMIN-only creation, sales-view history, bilingual screens and user-scoped durable retry drafts.
+- Inactive customer settlement; walk-in payments and unallocated credit are rejected.
+
+This is not a completed V1 release. Automatic synchronization, reports, PDFs and backups are not implemented. Historical invoice editing/cancellation remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory.
 
 ## Next milestones
 
 1. Remaining foundation: generated OpenAPI and user administration/password recovery workflows.
 2. Invoice integration of master data: inline customer/supplier creation and reference caching for offline entry.
-3. Purchases and inventory: server numbering, transactional WAC/stock movements, partial payment, audit and concurrency tests.
-4. Supplier payments: bounded allocation and oldest-first settlement.
-5. Sales invoices: mixed items, explicit money/weight choice, durable local drafts, user-scoped outbox, backend idempotency and dependency-aware synchronization.
-6. Expenses/waste, safe editing, reports, Arabic PDFs, backup/restore and production QA.
+3. Inventory valuation extensions: negative-stock reconciliation and safe historical invoice edits.
+4. Sales offline synchronization: reference caching, user-scoped outbox and dependency-aware synchronization.
+5. Expenses/waste, safe editing, reports, Arabic PDFs, backup/restore and production QA.
 
 Database integration checks use isolated PostgreSQL Testcontainers. PWA installation and offline behavior require browser/device acceptance tests before release.
 
@@ -61,3 +91,30 @@ Database integration checks use isolated PostgreSQL Testcontainers. PWA installa
 - Backend Maven verify passed: 15 tests, including PostgreSQL migration, duplicate phone, version conflict, payment-default, audit and permission scenarios.
 - Frontend lint, 9 tests and production PWA build passed. Draft remount/recovery uses a test IndexedDB implementation.
 - This verification did not include a real browser/device visual or PWA installation check.
+
+## Purchase verification — 2026-09-22
+
+- Backend: 25 tests passed, including PostgreSQL V4, concurrent purchases/retries, atomic rollback, partial payments, WAC, balances, snapshots and permissions.
+- Frontend: 13 tests passed, including integer-decimal previews and exact-payload retry across a form remount.
+- Lint and production PWA build passed. Browser/device visual and installability checks remain pending.
+
+## Supplier-payment verification - 2026-09-22
+
+- Backend Maven verify: 34 tests passed, including 9 payment scenarios against PostgreSQL with V5.
+- Frontend: 16 tests, lint and TypeScript/production PWA build passed.
+- Production build reports a non-blocking chunk-size warning (main bundle about 507 kB before gzip).
+- Browser/device acceptance and development-database migration remain to be performed; tests used isolated databases.
+
+## Sales verification - 2026-09-23
+
+- Backend Maven verify: 45 tests passed, including 11 sales integration scenarios with PostgreSQL and V6.
+- Frontend: 22 tests passed, including sales rounding, mixed totals, durable retry, validation recovery and walk-in full payment.
+- ESLint, TypeScript and production PWA build passed. The main bundle is approximately 527 kB before gzip and triggers a non-blocking size warning.
+- Real-browser visual/device acceptance and applying V6 to the development database remain pending. Integration tests used isolated databases.
+
+## Customer-payment verification - 2026-09-23
+
+- Backend Maven verify: 55 tests passed, including 10 customer-payment PostgreSQL integration scenarios with V7.
+- Frontend: 25 tests, ESLint, TypeScript and production PWA build passed.
+- Verified oldest/manual allocation, inactive customer debt, walk-in rejection, concurrent overpayment/retry protection, permissions and original-payment preservation.
+- The production build retains a non-blocking bundle-size warning (about 542 kB before gzip). Real-browser/device acceptance and development-database migration remain pending.

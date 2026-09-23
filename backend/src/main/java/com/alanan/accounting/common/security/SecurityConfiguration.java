@@ -34,6 +34,10 @@ public class SecurityConfiguration {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/language", "/api/users").authenticated()
+                .requestMatchers("/api/purchases", "/api/purchases/*", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements").authenticated()
+                .requestMatchers("/api/customer-payments", "/api/customer-payments/*").authenticated()
+                .requestMatchers("/api/supplier-payments", "/api/supplier-payments/*").authenticated()
+                .requestMatchers("/api/sales", "/api/sales/*", "/api/customer-balances").authenticated()
                 .requestMatchers("/api/products", "/api/products/*", "/api/customers", "/api/customers/*",
                     "/api/suppliers", "/api/suppliers/*", "/api/container-types", "/api/container-types/*",
                     "/api/payment-methods", "/api/payment-methods/*", "/api/expense-categories", "/api/expense-categories/*").authenticated()

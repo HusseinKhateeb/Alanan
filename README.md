@@ -1,6 +1,6 @@
 # Alanan · محمص العنان
 
-Accounting and business management for Al Anan Roastery. Authentication and master-data management are implemented; purchase and sales workflows are next. See [implementation status](docs/implementation-status.md), the [authentication design](docs/decisions/0002-authentication.md), and [master-data API](docs/api/master-data.md).
+Accounting and business management for Al Anan Roastery. Authentication, master data and purchase invoices with stock/WAC updates and supplier balances are implemented. See [implementation status](docs/implementation-status.md), [purchase API](docs/api/purchases.md), [authentication design](docs/decisions/0002-authentication.md), and [master-data API](docs/api/master-data.md).
 
 ## Repository
 
@@ -19,7 +19,7 @@ npm ci
 npm run dev
 ```
 
-Open the URL Vite prints (normally http://localhost:5173). The Arabic/English login screen needs the backend to sign in. Language selection is saved to the authenticated user's profile. No accounting data is collected yet.
+Open the URL Vite prints (normally http://localhost:5173). The Arabic/English login screen needs the backend to sign in. Language selection is saved to the authenticated user's profile. Accepted purchases now create real accounting records in the configured database.
 
 ```powershell
 npm run lint
@@ -71,6 +71,36 @@ Products enforce kg for spices and pieces for honey. Phone numbers are optional 
 Form drafts are stored in IndexedDB per user and survive closing the form or signing in again. Saving still requires a backend connection; these forms do not queue offline writes. Stale edits are rejected with a conflict message. Draft discard is explicit; no accounting history is deleted.
 
 The new Flyway migration runs automatically on backend startup. Backend verification uses disposable PostgreSQL containers; frontend verification includes IndexedDB draft recovery tests.
+
+## Purchase workflow
+
+Restart the backend to apply Flyway V4, then sign in and choose **New purchase**. Add an active supplier and products through the master-data screens first; admins can also create a supplier inline without losing invoice input.
+
+Add kg/piece lines, costs, optional supplier reference/notes and Paid now. Cash is the initial default payment method. Save creates one invoice, stock movements, weighted average costs and any payment/allocation atomically. View **Purchase invoices**, **Supplier balances** and **Inventory** from the workspace. Supplier balances link to that supplier's invoice history. WAC visibility requires COST_VIEW.
+
+Purchase drafts survive refresh and reauthentication. After a network interruption, use **Retry the same purchase**; the exact submitted payload and request key are preserved to prevent duplicates. A final invoice number appears only after server confirmation. Background automatic synchronization, historical invoice edits and PDF exports are not included yet.
+
+Inventory is calculated, not guaranteed physical stock. Purchases against negative stock or positive stock with unknown cost require review before valuation; no cost is invented. See [purchase transaction decisions](docs/decisions/0003-purchase-transactions.md).
+
+## Supplier payments
+
+Restart the backend to apply Flyway V5, then sign in again. Admins can choose **New supplier payment**, select a supplier (including inactive suppliers with debt), enter an amount and select manual allocation or oldest-invoice-first allocation. Manual allocations must equal the payment; excess payments are rejected. Saving updates invoice status, balances and audit history atomically.
+
+**Supplier payment history** includes both standalone payments and payments made with purchases. Supplier balances link to payment history. Payment drafts survive refresh and reauthentication; use **Retry the same payment** after uncertain network outcomes. There is no automatic submission, payment editing, cancellation or unallocated supplier credit. See [payment API](docs/api/supplier-payments.md) and [allocation decisions](docs/decisions/0004-supplier-payment-allocation.md).
+
+## Sales workflow
+
+Restart the backend to apply Flyway V6. Admins and employees can open **New sale**, select a customer or leave the default walk-in customer, and mix weight products, piece products and anonymous spice containers. Weight products support kg or requested money amount; line prices can be overridden without changing defaults. Use **Pay full total** for a fully paid sale. Partial payment requires a named customer.
+
+Sales save invoice, payment facts, stock movements, cost snapshots and audit records together. Negative calculated stock is allowed with a warning. Anonymous containers record revenue without deducting any specific spice or inventing cost. **Sales invoices** and **Customer balances** are available from the workspace. Cost details require COST_VIEW.
+
+Drafts survive refresh/relogin. After an uncertain response, use **Retry the same sale**. Automatic synchronization, sale editing/refunds and PDF exports are not implemented. See [sales API](docs/api/sales.md) and [sales decisions](docs/decisions/0005-sales-transactions.md).
+
+## Customer payments
+
+Restart the backend to apply V7, then sign in again. Admins can use **New customer payment** to settle a named customer balance manually or oldest-invoice-first. Overpayments and duplicate retries are prevented. Inactive customers can settle debt; walk-in customers cannot receive standalone payments.
+
+Customer balances and sales statuses update together. Sales details show the original payment separately from later allocations, and **Customer payment history** lists standalone payments. Drafts survive refresh/relogin and offer manual retry after uncertain outcomes. See [customer-payment API](docs/api/customer-payments.md).
 
 ## Configuration and data safety
 

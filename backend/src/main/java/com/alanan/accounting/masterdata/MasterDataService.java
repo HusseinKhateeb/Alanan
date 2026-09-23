@@ -53,8 +53,11 @@ public class MasterDataService {
     private void requireRead(Catalog catalog, AuthUser user) {
         if (user.permissions().contains("SETTINGS_MANAGE")) return;
         boolean allowed = switch (catalog) {
-            case PRODUCTS, CONTAINERS, PAYMENTS, CUSTOMERS -> user.permissions().contains("SALES_CREATE");
-            case SUPPLIERS -> user.permissions().contains("PURCHASES_VIEW") || user.permissions().contains("PURCHASES_CREATE");
+            case PRODUCTS -> user.permissions().contains("SALES_CREATE") || user.permissions().contains("PURCHASES_CREATE") || user.permissions().contains("INVENTORY_ADJUST");
+            case PAYMENTS -> user.permissions().contains("CUSTOMER_PAYMENTS_CREATE") || user.permissions().contains("SALES_CREATE") || user.permissions().contains("PURCHASES_CREATE") || user.permissions().contains("EXPENSES_CREATE") || user.permissions().contains("SUPPLIER_PAYMENTS_CREATE");
+            case CUSTOMERS -> user.permissions().contains("SALES_CREATE") || user.permissions().contains("CUSTOMER_PAYMENTS_CREATE");
+            case CONTAINERS -> user.permissions().contains("SALES_CREATE");
+            case SUPPLIERS -> user.permissions().contains("PURCHASES_VIEW") || user.permissions().contains("PURCHASES_CREATE") || user.permissions().contains("SUPPLIER_PAYMENTS_CREATE");
             case EXPENSES -> user.permissions().contains("EXPENSES_CREATE");
         };
         if (!allowed) throw new AccessDeniedException("Missing reference-data capability");
@@ -79,6 +82,9 @@ public class MasterDataService {
         } else if (input.version() != 0) fail("VALIDATION_FAILED");
 
         var values = values(catalog, input);
+        if (catalog == Catalog.PRODUCTS && before != null && !Objects.equals(before.get("tracking_type"),input.trackingType())
+            && Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM purchase_items WHERE product_id=?) OR EXISTS(SELECT 1 FROM sale_items WHERE product_id=?)",Boolean.class,id,id)))
+            fail("PRODUCT_UNIT_LOCKED");
         if (catalog == Catalog.PAYMENTS) {
             boolean requestedDefault = Boolean.TRUE.equals(input.isDefault());
             if (requestedDefault && !input.active()) fail("DEFAULT_MUST_BE_ACTIVE");

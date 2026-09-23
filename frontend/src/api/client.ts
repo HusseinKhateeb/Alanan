@@ -2,7 +2,7 @@ let accessToken: string | null = null
 export function setAccessToken(token: string | null) { accessToken = token }
 
 export class ApiError extends Error {
-  constructor(public code: string, public fieldErrors: Record<string, string> = {}) { super(code) }
+  constructor(public code: string, public fieldErrors: Record<string, string> = {}, public status = 0) { super(code) }
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -21,7 +21,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       setAccessToken(null)
       window.dispatchEvent(new Event('alanan:unauthenticated'))
     }
-    throw new ApiError(body.errorCode || 'SERVER_ERROR', body.fieldErrors)
+    throw new ApiError(body.errorCode || 'SERVER_ERROR', body.fieldErrors, response.status)
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>

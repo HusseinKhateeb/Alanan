@@ -1,0 +1,127 @@
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../../auth/AuthProvider'
+import { api, ApiError } from '../../api/client'
+import { localDrafts } from '../../db/masterDataDrafts'
+import { ReferenceSelector } from '../purchases/ReferenceSelector'
+import { SaleLineEditor } from './SaleLineEditor'
+import { newItem, newSale, saveSaleDraft, toRequest } from './drafts'
+import { preview } from './calculations'
+import { useFormUpdateGuard } from '../../app/pwa/formUpdateGuard'
+import type { SaleDraft, SaleReceipt } from './types'
+
+export function NewSalePage() {
+  const { user } = useAuth()
+  const { t } = useTranslation()
+  if (!user?.permissions.includes('SALES_CREATE')) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
+  return <SaleEditor key={user.id} userId={user.id} />
+}
+function SaleEditor({ userId }: { userId: string }) {
+  const { t } = useTranslation()
+  const { user } = useAuth()
+  const client = useQueryClient()
+  const [draft, setDraft] = useState<SaleDraft | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<ApiError | null>(null)
+  const [storageFailed, setStorageFailed] = useState(false)
+  useFormUpdateGuard(!!draft && !draft.receipt)
+  useEffect(() => {
+    let current = true
+    async function load() {
+      try {
+        const stored = await localDrafts.saleDrafts.get(userId)
+        const value = stored?.draft ?? newSale()
+        if (!stored) await saveSaleDraft(userId, value)
+        if (current) setDraft(value)
+      } catch { if (current) setStorageFailed(true) }
+    }
+    void load()
+    return () => { current = false }
+  }, [userId])
+
+  function update(next: SaleDraft) {
+    setDraft(next)
+    void saveSaleDraft(userId, next).then(() => setStorageFailed(false)).catch(() => setStorageFailed(true))
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!draft || busy) return
+    setBusy(true); setError(null)
+    let submitted = draft.submitted
+    try {
+      submitted ??= toRequest(draft)
+      const pending = { ...draft, submitted }
+      // Durable write MUST complete before any accounting request leaves this device.
+      await saveSaleDraft(userId, pending)
+      setDraft(pending); setStorageFailed(false)
+      const receipt = await api<SaleReceipt>('/sales', { method: 'POST', body: JSON.stringify(submitted) })
+      const complete = { ...pending, receipt }
+      setDraft(complete)
+      await saveSaleDraft(userId, complete).catch(() => setStorageFailed(true))
+      void client.invalidateQueries({ queryKey: ['sales'] })
+      void client.invalidateQueries({ queryKey: ['customer-balances'] })
+      void client.invalidateQueries({ queryKey: ['inventory'] })
+    } catch (failure) {
+      if (failure instanceof ApiError) {
+        setError(failure)
+        if (failure.status === 400 || failure.status === 403) {
+          const editable = { ...draft, submitted: undefined }
+          await saveSaleDraft(userId, editable).catch(() => setStorageFailed(true))
+          setDraft(editable)
+        }
+      } else if (failure instanceof Error && failure.message === 'SALE_REFERENCE_REQUIRED') {
+        setError(new ApiError('SALE_REFERENCE_REQUIRED'))
+      } else { setStorageFailed(true) }
+    } finally { setBusy(false) }
+  }
+  async function startNew() {
+    try { const next = newSale(); await saveSaleDraft(userId, next); setDraft(next); setError(null); setStorageFailed(false) }
+    catch { setStorageFailed(true) }
+  }
+  const locked = busy || !!draft?.submitted
+  const totals = draft ? preview(draft.items, draft.paidNow) : null
+  return <main className="purchase-page">
+    <Link to="/">{t('home')}</Link><h1>{t('sales.new')}</h1>
+    {storageFailed && <p role="alert">{t('purchase.storageError')}</p>}
+    {!draft && !storageFailed && <p role="status">{t('sales.loadingDraft')}</p>}
+    {draft?.receipt ? <section className="purchase-receipt" role="status">
+      <h2>{t('sales.saved', { number: draft.receipt.invoiceNumber })}</h2>
+      <p>{t('purchase.total')}: {draft.receipt.total} ₪</p>
+      {draft.receipt.negativeStock && <p role="alert">{t('sales.negativeStock')}</p>}
+      <p>{t('purchase.paid')}: {draft.receipt.paid} ₪ · {t('purchase.outstanding')}: {draft.receipt.outstanding} ₪</p>
+      {user?.permissions.includes('SALES_VIEW') && <Link to={'/sales/' + draft.receipt.id}>{t('purchase.view')}</Link>}
+      <button onClick={() => void startNew()}>{t('sales.another')}</button>
+    </section> : draft && <>
+      <p>{t('sales.draftNotice')}</p>
+      {draft.submitted && <p role="status" className="duplicate">{t('sales.pendingRetry')}</p>}
+      <p>{t('sales.walkInHelp')}</p>
+      <form onSubmit={submit}>
+        <fieldset disabled={locked} className="purchase-header-fields">
+          <ReferenceSelector kind="customers" id="sale-customer" value={draft.customer} disabled={locked} onChange={customer => update({ ...draft, customer })} />
+          <label>{t('purchase.date')}<input required type="date" value={draft.invoiceDate} aria-invalid={!!error?.fieldErrors.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} />
+            {error?.fieldErrors.invoiceDate && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
+        </fieldset>
+        {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1}
+          onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
+          onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })} />)}
+        <button type="button" disabled={locked || draft.items.length >= 100} onClick={() => update({ ...draft, items: [...draft.items, newItem()] })}>{t('purchase.addLine')}</button>
+        <fieldset disabled={locked} className="purchase-header-fields">
+          <label>{t('purchase.paidNow')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.paidNow}
+            onChange={event => update({ ...draft, paidNow: event.target.value })} aria-invalid={!!error?.fieldErrors.paidNow} />
+            {error?.fieldErrors.paidNow && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
+          <button type="button" disabled={locked || !totals} onClick={() => totals && update({ ...draft, paidNow: totals.total })}>{t('sales.payFull')}</button>
+          <ReferenceSelector kind="payment-methods" id="purchase-payment" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />
+          <label>{t('master.notes')}<textarea maxLength={2000} value={draft.notes} onChange={event => update({ ...draft, notes: event.target.value })} /></label>
+        </fieldset>
+        {error && <p role="alert" className="error">{t('errors.' + error.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
+        {totals?.overpaid && <p role="alert" className="error">{t('errors.PAYMENT_EXCEEDS_TOTAL')}</p>}
+        <div className="purchase-save-bar">
+          <div><strong>{t('purchase.total')}: {totals?.total ?? '—'} ₪</strong><span>{t('purchase.outstanding')}: {totals?.outstanding ?? '—'} ₪</span></div>
+          <button className="primary-button" disabled={busy || (!draft.submitted && (!totals || totals.overpaid || draft.items.some(item => !item.reference) || ((!draft.customer || draft.customer.is_walk_in) && totals.outstanding !== '0.00')))}>{t(busy ? 'master.saving' : draft.submitted ? 'sales.retry' : 'sales.save')}</button>
+        </div>
+      </form>
+    </>}
+  </main>
+}

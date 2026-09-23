@@ -34,6 +34,21 @@
 .reference-list article div { display: flex; flex-direction: column; overflow-wrap: anywhere; }
 .reference-list small { color: #617067; }
 .duplicate { padding: 16px; border-radius: 8px; background: #f0e6cf; }
+.purchase-page { max-width: 1000px; }
+.purchase-page form { display: grid; gap: 18px; }
+.purchase-header-fields { display: grid; gap: 16px; border: 0; padding: 0; margin: 16px 0; min-width: 0; }
+.purchase-page label, .reference-selector { display: grid; gap: 6px; }
+.purchase-page input, .purchase-page select, .purchase-page textarea { min-width: 0; width: 100%; border: 1px solid #9daa9f; border-radius: 8px; padding: 12px; min-height: 44px; background: white; color: inherit; font: inherit; }
+.reference-paging { display: flex; gap: 8px; }
+.reference-paging button { font-size: 12px; }
+.purchase-line { min-width: 0; background: #fffef9; border: 1px solid #b6c6b9; border-radius: 12px; padding: 20px; display: grid; gap: 16px; }
+.purchase-line legend { font-weight: 600; padding-inline: 8px; }
+.purchase-line-numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; align-items: end; }
+.purchase-save-bar { position: sticky; bottom: 0; background: #fffef9; border: 1px solid #b6c6b9; border-radius: 12px; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.purchase-save-bar div { display: grid; }
+.purchase-save-bar .primary-button { margin: 0; }
+.purchase-receipt { border-radius: 12px; background: #e8eee6; padding: 24px; }
+.purchase-receipt button { margin-inline-start: 16px; }
 * { box-sizing: border-box; }
 body { margin: 0; }
 button, a { -webkit-tap-highlight-color: transparent; }

@@ -6,9 +6,11 @@ import { useAuth } from '../../auth/AuthProvider'
 import { localDrafts, saveMasterDataDraft } from '../../db/masterDataDrafts'
 import { initialInput, payload, type Catalog, type ReferenceInput, type ReferenceRecord, type ReferencePage } from './catalogs'
 import { useDebounced } from './useDebounced'
+import { useFormUpdateGuard } from '../../app/pwa/formUpdateGuard'
 
-interface Props { catalog: Catalog; record?: ReferenceRecord; onSaved: () => void; onClose: () => void; onSelect: (record: ReferenceRecord) => void }
+interface Props { catalog: Catalog; record?: ReferenceRecord; onSaved: (record: ReferenceRecord) => void; onClose: () => void; onSelect: (record: ReferenceRecord) => void }
 export function ReferenceForm({ catalog, record, onSaved, onClose, onSelect }: Props) {
+  useFormUpdateGuard(true)
   const { t } = useTranslation()
   const { user } = useAuth()
   const [input, setInput] = useState(() => initialInput(record))
@@ -43,11 +45,11 @@ export function ReferenceForm({ catalog, record, onSaved, onClose, onSelect }: P
     if (pending || !loaded || existing) return
     setPending(true); setError(null)
     try {
-      await api<ReferenceRecord>(`/${catalog}${record ? '/' + record.id : ''}`, {
+      const result = await api<ReferenceRecord>(`/${catalog}${record ? '/' + record.id : ''}`, {
         method: record ? 'PUT' : 'POST', body: JSON.stringify(payload(catalog, input)),
       })
       await localDrafts.masterDataDrafts.delete(key).catch(() => undefined)
-      onSaved()
+      onSaved(result)
     } catch (failure) { setError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
     finally { setPending(false) }
   }

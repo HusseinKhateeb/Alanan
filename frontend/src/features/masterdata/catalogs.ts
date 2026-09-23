@@ -19,7 +19,10 @@ export function initialInput(record?: ReferenceRecord): ReferenceInput {
 }
 export function canRead(catalog: Catalog, permissions: string[]) {
   if (permissions.includes('SETTINGS_MANAGE')) return true
-  if (catalog === 'suppliers') return permissions.includes('PURCHASES_VIEW') || permissions.includes('PURCHASES_CREATE')
+  if (catalog === 'products') return ['SALES_CREATE', 'PURCHASES_CREATE', 'INVENTORY_ADJUST'].some(p => permissions.includes(p))
+  if (catalog === 'payment-methods') return ['CUSTOMER_PAYMENTS_CREATE', 'SALES_CREATE', 'PURCHASES_CREATE', 'EXPENSES_CREATE', 'SUPPLIER_PAYMENTS_CREATE'].some(p => permissions.includes(p))
+  if (catalog === 'customers') return ['SALES_CREATE', 'CUSTOMER_PAYMENTS_CREATE'].some(p => permissions.includes(p))
+  if (catalog === 'suppliers') return ['PURCHASES_VIEW', 'PURCHASES_CREATE', 'SUPPLIER_PAYMENTS_CREATE'].some(p => permissions.includes(p))
   if (catalog === 'expense-categories') return permissions.includes('EXPENSES_CREATE')
   return permissions.includes('SALES_CREATE')
 }
