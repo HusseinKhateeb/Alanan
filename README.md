@@ -127,3 +127,9 @@ Production uses explicit database environment values and the `prod` Spring profi
 CI builds/tests both applications and lints the frontend. No commits or deployments are automatically made by local setup.
 
 If backend port 8080 is occupied, set `SERVER_PORT=8081` in the root `.env`. The development helper and Vite proxy both use it. Restart both processes after changing this value; health then uses `http://localhost:8081/actuator/health`.
+
+## Local backend with Neon PostgreSQL
+
+Set `DB_URL` in the ignored root `.env` to the Neon JDBC URL with `sslmode=require&channelBinding=require`, and set `DB_USERNAME`/`DB_PASSWORD` separately. Keep `DB_HOST`, `DB_PORT` and `DB_NAME` consistent with the external database. The startup helper loads these settings and skips local Docker PostgreSQL when an external URL is configured. The backend and frontend still run locally; no Neon application deployment is required.
+
+Run `scripts/dev/Start-Development.ps1` normally, or add `-BootstrapAdmin` when the database has no users yet. Startup applies Flyway migrations to the configured Neon database. The JDBC URL must not include credentials; keep them in the separate ignored variables and never in frontend configuration. Changing databases does not transfer existing local records.

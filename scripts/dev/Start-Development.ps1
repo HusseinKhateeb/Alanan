@@ -3,7 +3,7 @@ param([switch]$BootstrapAdmin)
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $localEnvPath = Join-Path $repoRoot '.env'
-$environmentNames = @('SERVER_PORT', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'JWT_SECRET', 'SPRING_PROFILES_ACTIVE', 'BOOTSTRAP_ADMIN_ENABLED', 'BOOTSTRAP_ADMIN_USERNAME', 'BOOTSTRAP_ADMIN_PASSWORD')
+$environmentNames = @('SERVER_PORT', 'DB_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'JWT_SECRET', 'SPRING_PROFILES_ACTIVE', 'BOOTSTRAP_ADMIN_ENABLED', 'BOOTSTRAP_ADMIN_USERNAME', 'BOOTSTRAP_ADMIN_PASSWORD')
 $previousEnvironment = @{}
 foreach ($name in $environmentNames) { $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 
@@ -41,8 +41,12 @@ try {
     }
     Push-Location $repoRoot
     try {
-        & docker compose up -d --wait postgres
-        if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL could not start. Check Docker Desktop.' }
+        if ([string]::IsNullOrWhiteSpace($env:DB_URL) -and ($env:DB_HOST -in @('localhost', '127.0.0.1', '::1', ''))) {
+            & docker compose up -d --wait postgres
+            if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL could not start. Check Docker Desktop.' }
+        } else {
+            Write-Host 'Using the configured external database; local PostgreSQL startup skipped.'
+        }
         $mavenPath = Join-Path $repoRoot '.tools\apache-maven-3.9.11\bin\mvn.cmd'
         if (-not (Test-Path -LiteralPath $mavenPath)) { $mavenPath = (Get-Command mvn -ErrorAction Stop).Source }
         Push-Location (Join-Path $repoRoot 'backend')
