@@ -105,7 +105,7 @@ function Editor({ userId }: { userId: string }) {
         {allocated !== amount && <p>{t('errors.ALLOCATION_TOTAL_MISMATCH')}</p>}
       </>}
       {error && <p role="alert">{t('errors.' + error.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
-      <button className="primary-button" disabled={busy || (!draft.submitted && invalid)}>{t(busy ? 'master.saving' : draft.submitted ? 'customerPayments.retry' : 'customerPayments.save')}</button>
+      <div className="entry-save-bar"><button className="primary-button" disabled={busy || (!draft.submitted && invalid)}>{t(busy ? 'master.saving' : draft.submitted ? 'customerPayments.retry' : 'customerPayments.save')}</button></div>
       </form></>}
   </main>
 }

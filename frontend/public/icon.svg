@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#213d32"/><path d="M136 356 232 144h48l96 212h-58l-18-44h-88l-18 44Zm94-90h52l-26-66Z" fill="#edcf91"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Al Anan Roastery">
+  <circle cx="256" cy="256" r="250" fill="#fbecd0"/>
+  <circle cx="256" cy="256" r="225" fill="#fff8ea" stroke="#4a2516" stroke-width="12"/>
+  <circle cx="256" cy="256" r="205" fill="none" stroke="#a56617" stroke-width="3"/>
+  <path d="M146 347 236 150h40l90 197h-49l-17-41h-88l-17 41Zm81-78h58l-29-70Z" fill="#4a2516"/>
+  <path d="M135 370h242" stroke="#a56617" stroke-linecap="round" stroke-width="8"/>
+  <path d="M128 180c-17-22-23-48-17-76m17 76c-2-28 3-53 15-75m-15 75c13-23 31-40 53-52" fill="none" stroke="#7b6a36" stroke-linecap="round" stroke-width="9"/>
+  <path d="M384 180c17-22 23-48 17-76m-17 76c2-28-3-53-15-75m15 75c-13-23-31-40-53-52" fill="none" stroke="#7b6a36" stroke-linecap="round" stroke-width="9"/>
+</svg>

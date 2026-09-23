@@ -85,6 +85,39 @@ class CustomerPaymentIntegrationTest {
         mvc.perform(get("/api/customer-payments/"+result.get("id").asText()).header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("allocations.length()").value(2));
     }
+    @Test void cancellationReopensInvoiceAndPreservesPaymentHistory() throws Exception {
+        UUID invoice=sale("2026-01-01","100","20");
+        var payment=save(request("80","MANUAL",List.of(allocation(invoice,"80"))));
+        String path="/api/customer-payments/"+payment.get("id").asText()+"/cancel";
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Duplicate receipt\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("REFUND_CONFIRMATION_REQUIRED"));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Duplicate receipt\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT paid FROM sales WHERE id=?",java.math.BigDecimal.class,invoice)).isEqualByComparingTo("20");
+        assertThat(jdbc.queryForObject("SELECT status FROM sales WHERE id=?",String.class,invoice)).isEqualTo("PARTIAL");
+        mvc.perform(get("/api/customer-payments/"+payment.get("id").asText()).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("cancellation.reason").value("Duplicate receipt"))
+            .andExpect(jsonPath("allocations.length()").value(1));
+        mvc.perform(get("/api/customer-balances").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items[0].outstanding").value("80.00"));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Duplicate receipt\",\"refundConfirmed\":true}"))
+            .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_payment_audit WHERE action='CANCEL'",Integer.class)).isEqualTo(1);
+    }
+    @Test void paymentCannotBeReversedAfterItsSaleWasCancelled() throws Exception {
+        UUID invoice=sale("2026-01-01","100","0");
+        var payment=save(request("100","MANUAL",List.of(allocation(invoice,"100"))));
+        mvc.perform(post("/api/sales/"+invoice+"/cancel").header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Wrong invoice\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/customer-payments/"+payment.get("id").asText()+"/cancel").header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Duplicate\",\"refundConfirmed\":true}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("PAYMENT_INVOICE_CANCELLED"));
+        assertThat(jdbc.queryForObject("SELECT active FROM customer_payment_allocations WHERE payment_id=?",Boolean.class,UUID.fromString(payment.get("id").asText()))).isTrue();
+    }
     @Test void manualAllocationsHonorSelectedInvoicesAndAllowInactiveCustomerDebt() throws Exception {
         UUID first=sale("2026-01-01","100","0"), second=sale("2026-01-02","50","0");
         jdbc.update("UPDATE customers SET active=false WHERE id=?",customer);

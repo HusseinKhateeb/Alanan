@@ -84,6 +84,27 @@ class SupplierPaymentIntegrationTest {
         mvc.perform(get("/api/supplier-payments/"+result.get("id").asText()).header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("allocations.length()").value(2));
     }
+    @Test void cancellationReopensSupplierInvoiceAndPreservesAllocationHistory() throws Exception {
+        UUID invoice=purchase("2026-01-01","100","20");
+        var payment=save(request("80","MANUAL",List.of(allocation(invoice,"80"))));
+        String path="/api/supplier-payments/"+payment.get("id").asText()+"/cancel";
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Bank reversal\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("REFUND_RECEIPT_REQUIRED"));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Bank reversal\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT status FROM purchase_invoices WHERE id=?",String.class,invoice)).isEqualTo("PARTIAL");
+        mvc.perform(get("/api/purchases/"+invoice).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("outstanding").value("80.00"));
+        mvc.perform(get("/api/supplier-payments/"+payment.get("id").asText()).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("cancellation.reason").value("Bank reversal"))
+            .andExpect(jsonPath("allocations.length()").value(1));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Bank reversal\",\"refundConfirmed\":true}"))
+            .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM supplier_payment_audit WHERE action='CANCEL'",Integer.class)).isEqualTo(1);
+    }
     @Test void manualAllocationsHonorSelectedInvoicesAndAllowInactiveSupplierDebt() throws Exception {
         UUID first=purchase("2026-01-01","100","0"), second=purchase("2026-01-02","50","0");
         jdbc.update("UPDATE suppliers SET active=false WHERE id=?",supplier);

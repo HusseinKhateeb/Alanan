@@ -26,9 +26,9 @@ public class AdminBootstrap implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        // Serialize initial provisioning across application instances. Never reset an existing account.
+        // Serialize provisioning across application instances. Never reset an existing account.
         jdbc.execute("LOCK TABLE users IN EXCLUSIVE MODE");
-        if (jdbc.queryForObject("SELECT count(*) FROM users", Long.class) != 0) return;
+        if (jdbc.queryForObject("SELECT count(*) FROM users WHERE lower(username)=lower(?)", Long.class, username) != 0) return;
         if (!username.matches("[A-Za-z0-9._-]{3,100}") || password.length() < 14
                 || password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new IllegalStateException("Bootstrap requires a username of 3–100 ASCII letters/digits/._- and a password of at least 14 characters, at most 72 UTF-8 bytes");

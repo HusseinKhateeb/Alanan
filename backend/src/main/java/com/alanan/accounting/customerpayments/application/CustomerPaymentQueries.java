@@ -12,13 +12,13 @@ import org.springframework.stereotype.Service;
 public class CustomerPaymentQueries {
     private final JdbcTemplate jdbc;
     public CustomerPaymentQueries(JdbcTemplate jdbc) { this.jdbc=jdbc; }
-    private static final String SUMMARY="SELECT id,customer_id,customer_name,amount,payment_date,payment_method_name,allocation_mode FROM customer_payments";
+    private static final String SUMMARY="SELECT p.id,p.customer_id,p.customer_name,p.amount,p.payment_date,p.payment_method_name,p.allocation_mode,(c.payment_id IS NOT NULL) cancelled FROM customer_payments p LEFT JOIN customer_payment_cancellations c ON c.payment_id=p.id";
     @PreAuthorize("hasAuthority('SALES_VIEW')")
     public PagedRows.Page list(int page,UUID customerId) {
         PagedRows.validPage(page);
         return PagedRows.page(customerId==null
-            ? jdbc.queryForList(SUMMARY+" ORDER BY payment_date DESC,created_at DESC,id LIMIT 51 OFFSET ?",(long)page*50)
-            : jdbc.queryForList(SUMMARY+" WHERE customer_id=? ORDER BY payment_date DESC,created_at DESC,id LIMIT 51 OFFSET ?",customerId,(long)page*50));
+            ? jdbc.queryForList(SUMMARY+" ORDER BY p.payment_date DESC,p.created_at DESC,p.id LIMIT 51 OFFSET ?",(long)page*50)
+            : jdbc.queryForList(SUMMARY+" WHERE p.customer_id=? ORDER BY p.payment_date DESC,p.created_at DESC,p.id LIMIT 51 OFFSET ?",customerId,(long)page*50));
     }
     @PreAuthorize("hasAuthority('SALES_VIEW')")
     public Map<String,Object> detail(UUID id) {
@@ -26,6 +26,8 @@ public class CustomerPaymentQueries {
         if(rows.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
         var result=PagedRows.external(rows.getFirst());
         result.put("allocations",jdbc.queryForList("SELECT a.sale_id invoice_id,p.invoice_number,a.amount FROM customer_payment_allocations a JOIN sales p ON p.id=a.sale_id WHERE a.payment_id=? ORDER BY p.invoice_date,p.created_at,p.id",id).stream().map(PagedRows::external).toList());
+        var cancellations=jdbc.queryForList("SELECT reason,created_at FROM customer_payment_cancellations WHERE payment_id=?",id);
+        result.put("cancellation",cancellations.isEmpty()?null:PagedRows.external(cancellations.getFirst()));
         return result;
     }
     @PreAuthorize("hasAnyAuthority('SALES_VIEW','CUSTOMER_PAYMENTS_CREATE')")

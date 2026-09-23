@@ -97,8 +97,8 @@ public class SaleService {
         return receipt(id);
     }
     private Receipt receipt(UUID id) {
-        return jdbc.queryForObject("SELECT id,invoice_number,total,paid,total-paid outstanding,status,negative_stock FROM sales WHERE id=?",
-            (rs,row)->new Receipt(rs.getString("id"),rs.getString("invoice_number"),rs.getBigDecimal("total").toPlainString(),rs.getBigDecimal("paid").toPlainString(),rs.getBigDecimal("outstanding").toPlainString(),rs.getString("status"),rs.getBoolean("negative_stock")),id);
+        return jdbc.queryForObject("SELECT id,invoice_number,total,paid,CASE WHEN status='CANCELLED' THEN 0 ELSE total-paid END outstanding,status,negative_stock FROM sales WHERE id=?",
+            (rs,row)->new Receipt(rs.getString("id"),rs.getString("invoice_number"),rs.getBigDecimal("total").toPlainString(),rs.getBigDecimal("paid").toPlainString(),rs.getBigDecimal("outstanding").setScale(2).toPlainString(),rs.getString("status"),rs.getBoolean("negative_stock")),id);
     }
     private String serialize(Object value) {
         try { return json.writeValueAsString(value); } catch(JsonProcessingException ex) { throw new IllegalStateException("Unable to serialize sale",ex); }

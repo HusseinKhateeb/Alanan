@@ -144,6 +144,20 @@ class AuthenticationIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$[0].username").value("owner"))
             .andExpect(jsonPath("$[0].password_hash").doesNotExist());
     }
+    @Test void bootstrapAddsConfiguredAdminWithoutChangingExistingAccounts() throws Exception {
+        jdbc.execute("TRUNCATE users CASCADE");
+        UUID existing = employee();
+        String employeeHash = jdbc.queryForObject("SELECT password_hash FROM users WHERE id=?", String.class, existing);
+        bootstrap.run(new DefaultApplicationArguments());
+        String adminHash = jdbc.queryForObject("SELECT password_hash FROM users WHERE username='owner'", String.class);
+        assertThat(passwords.matches(PASSWORD, adminHash)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username='owner' AND id IN (SELECT user_id FROM user_roles WHERE role_id=(SELECT id FROM roles WHERE name='ADMIN'))", Integer.class)).isEqualTo(1);
+        bootstrap.run(new DefaultApplicationArguments());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT password_hash FROM users WHERE id=?", String.class, existing)).isEqualTo(employeeHash);
+        assertThat(jdbc.queryForObject("SELECT password_hash FROM users WHERE username='owner'", String.class)).isEqualTo(adminHash);
+        assertThat(login("owner", PASSWORD).get("accessToken").asText()).isNotBlank();
+    }
     @Test void employeesOnlyReceiveTheirCapabilitiesAndCannotListUsers() throws Exception {
         employee();
         var response = login("employee", PASSWORD);

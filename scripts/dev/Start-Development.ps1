@@ -30,14 +30,13 @@ try {
         throw 'Set DB_PASSWORD and JWT_SECRET in the existing root .env. This script never overwrites existing configuration.'
     }
     $env:SPRING_PROFILES_ACTIVE = 'dev'
-    $env:BOOTSTRAP_ADMIN_ENABLED = 'false'
-    if ($BootstrapAdmin) {
-        $env:BOOTSTRAP_ADMIN_USERNAME = Read-Host 'Initial admin username (3–100 ASCII letters/digits/._-)'
-        $securePassword = Read-Host 'Initial admin password (at least 14 characters; maximum 72 UTF-8 bytes)' -AsSecureString
-        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        try { $env:BOOTSTRAP_ADMIN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
-        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer); $securePassword.Dispose() }
+    if ($BootstrapAdmin -or $env:BOOTSTRAP_ADMIN_ENABLED -eq 'true') {
+        if ([string]::IsNullOrWhiteSpace($env:BOOTSTRAP_ADMIN_USERNAME) -or [string]::IsNullOrWhiteSpace($env:BOOTSTRAP_ADMIN_PASSWORD)) {
+            throw 'Set BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD in the ignored root .env before enabling admin bootstrap.'
+        }
         $env:BOOTSTRAP_ADMIN_ENABLED = 'true'
+    } else {
+        $env:BOOTSTRAP_ADMIN_ENABLED = 'false'
     }
     Push-Location $repoRoot
     try {

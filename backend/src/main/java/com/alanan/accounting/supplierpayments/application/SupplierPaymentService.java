@@ -99,7 +99,7 @@ public class SupplierPaymentService {
         while(remaining.signum()>0) {
             var invoices=jdbc.query(INVOICE_QUERY+"""
                  WHERE p.supplier_id=? AND p.status<>'CANCELLED'
-                 AND p.total>COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id),0)
+                 AND p.total>COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id AND a.active),0)
                  ORDER BY p.invoice_date,p.created_at,p.id LIMIT 100 OFFSET ? FOR UPDATE OF p
                 """,(rs,row)->invoice(rs),request.supplierId(),offset);
             if(invoices.isEmpty()) fail("PAYMENT_EXCEEDS_OUTSTANDING");
@@ -115,7 +115,7 @@ public class SupplierPaymentService {
 
     private static final String INVOICE_QUERY="""
         SELECT p.id,p.invoice_number,p.total,p.status,p.version,
-        p.total-COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id),0) outstanding
+        p.total-COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id AND a.active),0) outstanding
         FROM purchase_invoices p
         """;
     private Invoice invoice(java.sql.ResultSet rs) throws java.sql.SQLException {

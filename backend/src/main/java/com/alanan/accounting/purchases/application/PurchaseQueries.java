@@ -17,8 +17,8 @@ public class PurchaseQueries {
     public PurchaseQueries(JdbcTemplate jdbc) { this.jdbc=jdbc; }
     private static final String SUMMARY="""
         SELECT p.id,p.invoice_number,p.supplier_id,p.supplier_name,p.invoice_date,p.total,p.status,
-        COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id),0)::numeric(18,2) paid,
-        (p.total-COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id),0))::numeric(18,2) outstanding
+        COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id AND a.active),0)::numeric(18,2) paid,
+        (CASE WHEN p.status='CANCELLED' THEN 0 ELSE p.total-COALESCE((SELECT sum(a.amount) FROM supplier_payment_allocations a WHERE a.purchase_invoice_id=p.id AND a.active),0) END)::numeric(18,2) outstanding
         FROM purchase_invoices p
         """;
     @PreAuthorize("hasAuthority('PURCHASES_VIEW')")
@@ -36,7 +36,9 @@ public class PurchaseQueries {
         var result=external(rows.getFirst());
         result.putAll(external(jdbc.queryForMap("SELECT supplier_reference,notes,created_by,created_at,version FROM purchase_invoices WHERE id=?",id)));
         result.put("items",jdbc.queryForList("SELECT product_id,product_name,product_code,tracking_type,quantity,unit_cost,line_total FROM purchase_items WHERE purchase_invoice_id=? ORDER BY line_number",id).stream().map(PagedRows::external).toList());
-        result.put("payments",jdbc.queryForList("SELECT p.id,p.payment_date,p.payment_method_name,a.amount FROM supplier_payments p JOIN supplier_payment_allocations a ON a.payment_id=p.id WHERE a.purchase_invoice_id=? ORDER BY p.created_at,p.id",id).stream().map(PagedRows::external).toList());
+        result.put("payments",jdbc.queryForList("SELECT p.id,p.payment_date,p.payment_method_name,a.amount,a.active FROM supplier_payments p JOIN supplier_payment_allocations a ON a.payment_id=p.id WHERE a.purchase_invoice_id=? ORDER BY p.created_at,p.id",id).stream().map(PagedRows::external).toList());
+        var cancellations=jdbc.queryForList("SELECT reason,refund_received,refund_method_name,created_at FROM purchase_cancellations WHERE purchase_invoice_id=?",id);
+        result.put("cancellation",cancellations.isEmpty() ? null : PagedRows.external(cancellations.getFirst()));
         return result;
     }
 }

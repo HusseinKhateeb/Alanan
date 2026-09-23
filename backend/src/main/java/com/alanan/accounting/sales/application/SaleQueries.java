@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SaleQueries {
     private final JdbcTemplate jdbc;
     public SaleQueries(JdbcTemplate jdbc) { this.jdbc=jdbc; }
-    private static final String SUMMARY="SELECT id,invoice_number,customer_id,customer_name,invoice_date,total,paid,total-paid outstanding,status,negative_stock FROM sales";
+    private static final String SUMMARY="SELECT id,invoice_number,customer_id,customer_name,invoice_date,total,paid,(CASE WHEN status='CANCELLED' THEN 0 ELSE total-paid END)::numeric(18,2) outstanding,status,negative_stock FROM sales";
     @PreAuthorize("hasAuthority('SALES_VIEW')")
     public PagedRows.Page list(int page,UUID customerId) {
         PagedRows.validPage(page);
@@ -30,7 +30,9 @@ public class SaleQueries {
         result.putAll(PagedRows.external(jdbc.queryForMap("SELECT notes,paid_at_sale,payment_method_name,created_at,version FROM sales WHERE id=?",id)));
         String costs=user.permissions().contains("COST_VIEW") ? ",cost_at_sale,cost_total" : "";
         result.put("items",jdbc.queryForList("SELECT product_id,container_type_id,item_name,product_code,item_type,selling_mode,quantity,unit_price,requested_amount,line_total"+costs+" FROM sale_items WHERE sale_id=? ORDER BY line_number",id).stream().map(PagedRows::external).toList());
-        result.put("payments",jdbc.queryForList("SELECT cp.id,cp.payment_date,cp.payment_method_name,a.amount FROM customer_payments cp JOIN customer_payment_allocations a ON a.payment_id=cp.id WHERE a.sale_id=? ORDER BY cp.created_at,cp.id",id).stream().map(PagedRows::external).toList());
+        result.put("payments",jdbc.queryForList("SELECT cp.id,cp.payment_date,cp.payment_method_name,a.amount,a.active FROM customer_payments cp JOIN customer_payment_allocations a ON a.payment_id=cp.id WHERE a.sale_id=? ORDER BY cp.created_at,cp.id",id).stream().map(PagedRows::external).toList());
+        var cancellations=jdbc.queryForList("SELECT reason,refund_amount,refund_method_name,created_at FROM sale_cancellations WHERE sale_id=?",id);
+        result.put("cancellation",cancellations.isEmpty() ? null : PagedRows.external(cancellations.getFirst()));
         return result;
     }
     @PreAuthorize("hasAuthority('SALES_VIEW')")
@@ -39,7 +41,7 @@ public class SaleQueries {
         return PagedRows.page(jdbc.queryForList("""
             SELECT c.id,c.name,sum(s.total)::numeric(18,2) sold,sum(s.paid)::numeric(18,2) paid,
             sum(s.total-s.paid)::numeric(18,2) outstanding FROM customers c JOIN sales s ON s.customer_id=c.id
-            WHERE NOT c.is_walk_in GROUP BY c.id,c.name ORDER BY lower(c.name),c.id LIMIT 51 OFFSET ?
+            WHERE NOT c.is_walk_in AND s.status<>'CANCELLED' GROUP BY c.id,c.name ORDER BY lower(c.name),c.id LIMIT 51 OFFSET ?
             """,(long)page*50));
     }
 }

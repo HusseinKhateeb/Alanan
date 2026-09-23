@@ -119,8 +119,9 @@ public class PurchaseService {
     }
     private Receipt receipt(UUID id) {
         return jdbc.queryForObject("""
-            SELECT p.id,p.invoice_number,p.total,p.status,COALESCE(a.paid,0) paid,p.total-COALESCE(a.paid,0) outstanding
-            FROM purchase_invoices p LEFT JOIN (SELECT purchase_invoice_id,sum(amount) paid FROM supplier_payment_allocations GROUP BY purchase_invoice_id) a
+            SELECT p.id,p.invoice_number,p.total,p.status,COALESCE(a.paid,0) paid,
+            CASE WHEN p.status='CANCELLED' THEN 0 ELSE p.total-COALESCE(a.paid,0) END outstanding
+            FROM purchase_invoices p LEFT JOIN (SELECT purchase_invoice_id,sum(amount) paid FROM supplier_payment_allocations WHERE active GROUP BY purchase_invoice_id) a
             ON a.purchase_invoice_id=p.id WHERE p.id=?
             """,(rs,row)-> new Receipt(rs.getString("id"),rs.getString("invoice_number"),rs.getBigDecimal("total").toPlainString(),
                 PurchaseMath.money(rs.getBigDecimal("paid")).toPlainString(),PurchaseMath.money(rs.getBigDecimal("outstanding")).toPlainString(),rs.getString("status")),id);

@@ -15,6 +15,7 @@ export interface PurchaseSummary { id: string; invoice_number: string; supplier_
 export interface PurchaseDetail extends PurchaseSummary {
   supplier_reference: string | null; notes: string | null
   items: { product_id: string; product_name: string; tracking_type: string; quantity: string; unit_cost: string; line_total: string }[]
-  payments: { id: string; payment_date: string; payment_method_name: string; amount: string }[]
+  payments: { id: string; payment_date: string; payment_method_name: string; amount: string; active: boolean }[]
+  cancellation: { reason: string; refund_received: string; refund_method_name: string | null; created_at: string } | null
 }
 export interface Page<T> { items: T[]; hasMore: boolean }

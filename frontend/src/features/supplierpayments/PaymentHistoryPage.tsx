@@ -6,6 +6,7 @@ import { api, ApiError } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 import type { Page } from '../purchases/types'
 import type { PaymentDetail, PaymentSummary } from './types'
+import { CancelControl } from '../cancellations/CancelControl'
 
 export function PaymentHistoryPage() {
   const [params] = useSearchParams()
@@ -27,7 +28,7 @@ function History({ supplier }: { supplier: string | null }) {
     {result.data?.items.length === 0 && <p>{t('master.empty')}</p>}
     <div className="reference-list">{result.data?.items.map(payment => <article key={payment.id}><div>
       <Link to={'/supplier-payments/' + payment.id}>{payment.supplier_name} · {payment.amount} ₪</Link>
-      <span>{payment.payment_date} · {payment.payment_method_name}</span><small>{t('payments.' + payment.allocation_mode)}</small>
+      <span>{payment.payment_date} · {payment.payment_method_name}</span><small>{t('payments.' + payment.allocation_mode)}{payment.cancelled ? ' · ' + t('cancellation.cancelled') : ''}</small>
     </div></article>)}</div>
     <div className="pagination"><button disabled={page === 0 || result.isFetching} onClick={() => setPage(page - 1)}>{t('auth.previous')}</button>
       <button disabled={!result.data?.hasMore || result.isFetching} onClick={() => setPage(page + 1)}>{t('auth.next')}</button></div>
@@ -48,5 +49,7 @@ export function PaymentDetailPage() {
     {payment && <><h2>{payment.supplier_name}</h2><p>{payment.payment_date} · {payment.amount} ₪ · {payment.payment_method_name}</p>
       <p>{t('payments.' + payment.allocation_mode)}</p><p>{payment.notes}</p><h2>{t('payments.selectedAllocations')}</h2>
       <ul>{payment.allocations.map(item => <li key={item.invoice_id}><Link to={'/purchases/' + item.invoice_id}>{item.invoice_number}</Link>: {item.amount} ₪</li>)}</ul></>}
+    {payment && user?.permissions.includes('SUPPLIER_PAYMENTS_CREATE') && user.permissions.includes('AUDIT_VIEW') && <CancelControl endpoint={'/supplier-payments/' + payment.id} kind="supplierPayment" cancelled={payment.cancellation?.reason} />}
+    {payment?.cancellation && !user?.permissions.includes('AUDIT_VIEW') && <p>{t('cancellation.cancelled')}</p>}
   </main>
 }

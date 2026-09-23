@@ -14,5 +14,5 @@ export interface PaymentDraft {
   submitted?: PaymentRequest; receipt?: PaymentReceipt
 }
 export interface OpenInvoice { id: string; invoice_number: string; invoice_date: string; total: string; outstanding: string }
-export interface PaymentSummary { id: string; supplier_id: string; supplier_name: string; amount: string; payment_date: string; payment_method_name: string; allocation_mode: string }
-export interface PaymentDetail extends PaymentSummary { notes: string | null; allocations: { invoice_id: string; invoice_number: string; amount: string }[] }
+export interface PaymentSummary { id: string; supplier_id: string; supplier_name: string; amount: string; payment_date: string; payment_method_name: string; allocation_mode: string; cancelled: boolean }
+export interface PaymentDetail extends PaymentSummary { notes: string | null; allocations: { invoice_id: string; invoice_number: string; amount: string }[]; cancellation: { reason: string; created_at: string } | null }

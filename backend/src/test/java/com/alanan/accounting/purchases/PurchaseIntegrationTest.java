@@ -137,6 +137,40 @@ class PurchaseIntegrationTest {
             .content("{\"name\":\"Spice\",\"code\":\"S\",\"category\":\"OTHER\",\"trackingType\":\"PIECE\",\"price\":\"45\",\"active\":true,\"version\":1}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("PRODUCT_UNIT_LOCKED"));
     }
+    @Test void cancellingPaidPurchaseRequiresRefundAndRestoresStockAndBalanceOnce() throws Exception {
+        var original=request("20",List.of(item(spice,"2","10")));
+        var purchase=create(original);
+        String path="/api/purchases/"+purchase.get("id").asText()+"/cancel";
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Supplier credit note\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("REFUND_RECEIPT_REQUIRED"));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Supplier credit note\",\"refundReceivedConfirmed\":true}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("status").value("CANCELLED"));
+        mvc.perform(get("/api/purchases/"+purchase.get("id").asText()).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("outstanding").value("0.00"))
+            .andExpect(jsonPath("cancellation.refund_received").value("20.00"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements WHERE reference_type='PURCHASE_CANCEL'",Integer.class)).isEqualTo(1);
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Supplier credit note\",\"refundReceivedConfirmed\":true}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("ALREADY_CANCELLED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements WHERE reference_type='PURCHASE_CANCEL'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM purchase_audit WHERE action='CANCEL'",Integer.class)).isEqualTo(1);
+        assertThat(create(original).get("outstanding").asText()).isEqualTo("0.00");
+    }
+    @Test void laterMovementPreventsPurchaseCancellationWithoutChangingStock() throws Exception {
+        var purchase=create(request("0",List.of(item(spice,"2","10"))));
+        jdbc.update("INSERT INTO inventory_movements(id,product_id,movement_type,quantity_change,reference_type,reference_id,created_by) VALUES (?,?,'CORRECTION',1,'CORRECTION',?,?)",
+            UUID.randomUUID(),spice,UUID.randomUUID(),identities.credentials("owner").orElseThrow().id());
+        mvc.perform(post("/api/purchases/"+purchase.get("id").asText()+"/cancel").header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Incorrect supplier\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("PURCHASE_REVALUATION_REQUIRED"));
+        assertThat(jdbc.queryForObject("SELECT status FROM purchase_invoices WHERE id=?",String.class,UUID.fromString(purchase.get("id").asText()))).isEqualTo("OPEN");
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("2");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM purchase_cancellations",Integer.class)).isZero();
+    }
     void runConcurrently(Map<String,Object> first,Map<String,Object> second) throws Exception {
         var start=new CountDownLatch(1);
         try(var executor=Executors.newFixedThreadPool(2)) {

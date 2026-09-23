@@ -71,7 +71,13 @@
 - Capability restrictions, hidden cost fields, exact-request retries and durable bilingual forms.
 - Waste history filters by dates/product; product units locked after waste history.
 
-This is not a completed V1 release. Automatic synchronization for non-sales workflows, reports, PDFs and backups are not implemented. Historical invoice editing/cancellation remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory.
+This is not a completed V1 release. Automatic synchronization for non-sales workflows, full reports, PDFs and backups are not implemented. Historical invoice editing remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory. See the requirement-by-requirement [v6 specification review](specification-review.md).
+
+## Implemented: read-only audit history
+
+- An `AUDIT_VIEW`-protected API and bilingual screen combine existing master-data, invoice, payment, expense, waste and authentication events.
+- History is paginated with type, actor and UTC date filters. Each event exposes its recorded JSON snapshot when present; create-only audit tables have no before snapshot.
+- This is partial coverage of specification §12: edit/cancel, user/permission and backup events require the corresponding workflows before they can appear.
 
 ## Next milestones
 
@@ -146,3 +152,41 @@ Database integration checks use isolated PostgreSQL Testcontainers. PWA installa
 - Frontend: 41 tests passed; ESLint, TypeScript and production PWA build passed.
 - Existing production bundle-size warning remains (approximately 563 kB before gzip).
 - Development database migration and real-browser/device acceptance remain pending. Test databases were isolated. No new dependency or environment variable is required.
+
+## Audit/specification verification - 2026-09-23
+
+- Backend Maven verify passed: 66 tests, including audit filtering, date validation and denied access without `AUDIT_VIEW`, against disposable PostgreSQL 17 Testcontainers databases.
+- Frontend: 41 tests, ESLint, TypeScript and production PWA build passed. Audit screen has no dedicated component test or real-browser acceptance yet.
+- The production bundle remains above Vite's advisory 500 kB threshold (about 567 kB before gzip).
+- The local `.env`/Neon database was not used or modified during these checks. The v6 review records the remaining implementation and acceptance gaps.
+
+## Frontend entry and theme improvements - 2026-09-23
+
+- Workspace now prioritizes New Sale, New Purchase, Expense and Waste, with records below and administration in a disclosure.
+- Sale entry offers direct product/container picks, one-tap sale type and weight/money choices, search focus for a new line, and automatic full-payment totals until the user explicitly edits the payment. Purchase and payment/operation forms share clearer fields and mobile save bars.
+- The interface and SVG mark use cream, cocoa brown, gold and muted spice/olive colors drawn from the supplied roastery sticker. The PWA browser theme colors match. Existing raster install icons still need a matching export.
+- Infrequent pages load on navigation; the initial JavaScript bundle decreased from about 569 kB to 336 kB before gzip. This is a bundle-size comparison, not a measured page-load benchmark.
+- Frontend lint, 42 tests and production PWA build passed. Real-browser/mobile visual and task-timing acceptance remain pending.
+
+## Local admin bootstrap - 2026-09-23
+
+- The development starter reads admin bootstrap settings from the ignored root `.env` and does not prompt on each run. The named account is created only if absent; existing credentials are never reset.
+- Backend Maven verify passed 68 tests, including provisioning when other users already exist and idempotent repeat bootstrap, using disposable PostgreSQL databases.
+- A temporary localhost-only backend startup provisioned/verified the requested admin login against the configured Neon database, then stopped. The credential remains only in the ignored local configuration, not in tracked source.
+
+## Dashboard and record cancellation - 2026-09-23
+
+- The home screen now displays database-backed sales, purchases, expenses, supplier debt and known-cost profit indicators. Container revenue is reported separately because its product cost is unknown. Figures are gated by the user's capabilities.
+- Master-data screens expose Archive and Restore for products, suppliers, customers, containers, payment methods and expense categories. These change active status and retain transaction history; protected default records remain protected.
+- Sale invoices can be cancelled with a reason, stock reversal and audit record. A paid sale requires confirmation that the customer refund occurred. Cancelled invoices no longer contribute to customer debt or dashboard revenue.
+- Purchase invoices can be cancelled with a reason, stock/WAC reversal and audit record only when no later stock movement or cost change depends on the purchase. A paid purchase requires confirmation that the supplier refund was received. Otherwise the API reports that manual revaluation is needed.
+- Existing payment records remain visible as historical facts alongside the cancellation/refund record. The application records refund confirmation but does not execute a bank transfer. Invoice editing and historical cost replay remain open work.
+- These changes were checked against isolated PostgreSQL Testcontainers databases; the configured Neon database was not migrated as part of this work.
+- Backend Maven verify passed 72 tests (including cancellation and dashboard integration cases); frontend lint, 42 tests and production PWA build passed. Cancellation retry receipt changes received a further focused sale/purchase integration run. Browser acceptance remains pending.
+
+## Expense and payment cancellation - 2026-09-23
+
+- Expenses now have a reasoned, audited cancellation record. Cancelled expenses stay in history and are excluded from current dashboard totals; the user confirms the payment was voided or returned.
+- Customer and supplier payments can be cancelled by an authorized user after refund confirmation. Allocations remain in the database as history but become inactive; the affected invoices and balances are recalculated atomically. Payments tied to cancelled invoices cannot be reversed independently because that invoice already has a refund record.
+- Payment detail and history show cancellation status. The user must still handle the real-world refund; there is no bank integration or cash ledger. The migration is V11 and was verified only on disposable PostgreSQL Testcontainers databases, not the configured Neon database.
+- Backend Maven verify passed 76 tests, including reversals and the cancelled-invoice guard. Frontend lint, 42 tests and a production build passed. Real-browser acceptance remains pending.

@@ -140,6 +140,46 @@ class SaleIntegrationTest {
             .content("{\"name\":\"Spice\",\"code\":\"S\",\"category\":\"OTHER\",\"trackingType\":\"PIECE\",\"price\":\"45\",\"active\":true,\"version\":1}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("PRODUCT_UNIT_LOCKED"));
     }
+    @Test void paidCancellationRequiresConfirmedRefundAndRestoresStockOnce() throws Exception {
+        var original=request("45",List.of(item(spice,"BY_WEIGHT","1","45")));
+        var sale=create(original);
+        String path="/api/sales/"+sale.get("id").asText()+"/cancel";
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("reason","Entered twice","refundConfirmed",false))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("REFUND_CONFIRMATION_REQUIRED"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("9");
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("reason","Entered twice","refundConfirmed",true))))
+            .andExpect(status().isOk()).andExpect(jsonPath("status").value("CANCELLED"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT refund_amount FROM sale_cancellations",BigDecimal.class)).isEqualByComparingTo("45");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements WHERE movement_type='REVERSAL'",Integer.class)).isEqualTo(1);
+        mvc.perform(get("/api/sales/"+sale.get("id").asText()).header("Authorization","Bearer "+token))
+            .andExpect(jsonPath("outstanding").value("0.00")).andExpect(jsonPath("cancellation.reason").value("Entered twice"));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("reason","Entered twice","refundConfirmed",true))))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("ALREADY_CANCELLED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sale_cancellations",Integer.class)).isEqualTo(1);
+        assertThat(create(original).get("outstanding").asText()).isEqualTo("0.00");
+    }
+    @Test void unpaidCancellationRequiresNoRefundAndEmployeesCannotCancel() throws Exception {
+        var sale=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        String path="/api/sales/"+sale.get("id").asText()+"/cancel";
+        UUID owner=identities.credentials("owner").orElseThrow().id();
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='EMPLOYEE'",owner);
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("reason","Mistake","refundConfirmed",false))))
+            .andExpect(status().isForbidden());
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='ADMIN'",owner);
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("reason","Mistake","refundConfirmed",false))))
+            .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT refund_amount FROM sale_cancellations",BigDecimal.class)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+        mvc.perform(get("/api/customer-balances").header("Authorization","Bearer "+token)).andExpect(jsonPath("items.length()").value(0));
+    }
     void concurrent(Map<String,Object> first,Map<String,Object> second) throws Exception {
         var start=new CountDownLatch(1);
         try(var pool=Executors.newFixedThreadPool(2)) {

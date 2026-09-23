@@ -6,7 +6,7 @@ export function newItem(): SaleLine {
 export function newSale(): SaleDraft {
   const now = new Date()
   return { requestId: crypto.randomUUID(), customer: null, invoiceDate: [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-'),
-    notes: '', paidNow: '0', paymentMethod: null, items: [newItem()] }
+    notes: '', paidNow: '0', autoPayFull: true, paymentMethod: null, items: [newItem()] }
 }
 export function saveSaleDraft(userId: string, draft: SaleDraft) {
   return localDrafts.saleDrafts.put({ key: userId, draft, updatedAt: Date.now() })

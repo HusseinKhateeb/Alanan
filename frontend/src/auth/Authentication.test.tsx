@@ -72,7 +72,7 @@ test('employee cannot open the user directory through direct navigation', async 
   const fetch = authenticatedFetch('en', ['SALES_CREATE', 'SALES_VIEW'])
   vi.stubGlobal('fetch', fetch)
   mount('/users'); submit()
-  expect(await screen.findByRole('alert')).toHaveTextContent('do not have permission')
+  expect(await screen.findByText(/do not have permission/)).toHaveAttribute('role', 'alert')
   expect(fetch.mock.calls.some(([url]) => url.includes('/users'))).toBe(false)
 })
 

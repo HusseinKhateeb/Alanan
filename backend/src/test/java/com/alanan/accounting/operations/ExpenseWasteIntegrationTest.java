@@ -3,6 +3,8 @@ package com.alanan.accounting.operations;
 import com.alanan.accounting.auth.*;
 import com.fasterxml.jackson.databind.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
@@ -32,7 +34,9 @@ class ExpenseWasteIntegrationTest {
     @Autowired AdminBootstrap bootstrap; @Autowired IdentityRepository identities; @Autowired TokenService tokens;
     UUID product,category,owner;String token;
     @BeforeEach void setup() {
-        jdbc.execute("TRUNCATE users,products,expense_categories CASCADE");bootstrap.run(new DefaultApplicationArguments());
+        jdbc.execute("TRUNCATE users,products,expense_categories,container_types,suppliers CASCADE");
+        jdbc.update("DELETE FROM customers WHERE NOT is_walk_in");
+        bootstrap.run(new DefaultApplicationArguments());
         owner=identities.credentials("owner").orElseThrow().id(); token=tokens.issue(identities.activeUser(owner,0).orElseThrow(),0).accessToken();
         product=UUID.randomUUID();category=UUID.randomUUID();
         jdbc.update("INSERT INTO products(id,code,name,category,tracking_type,default_selling_price,current_stock,current_wac) VALUES (?,'S','Spice','SPICE','WEIGHT',45,10,20)",product);
@@ -56,6 +60,26 @@ class ExpenseWasteIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM expense_audit",Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements",Integer.class)).isZero();
     }
+    @Test void cancelledExpenseLeavesHistoryAndDisappearsFromDashboardTotals() throws Exception {
+        var body=expense();
+        body.put("expenseDate",LocalDate.now(ZoneId.of("Asia/Hebron")).toString());
+        var record=save("expenses",body);
+        mvc.perform(get("/api/dashboard").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("expensesMonth").value("125.50"));
+        String path="/api/expenses/"+record.get("id").asText()+"/cancel";
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Entered twice\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("cancellation.reason").value("Entered twice"));
+        mvc.perform(get("/api/expenses").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items[0].cancellation_reason").value("Entered twice"));
+        mvc.perform(get("/api/dashboard").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("expensesMonth").value("0.00"));
+        mvc.perform(post(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Entered twice\",\"refundConfirmed\":true}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("ALREADY_CANCELLED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM expenses",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM expense_audit WHERE action='CANCEL'",Integer.class)).isEqualTo(1);
+    }
     @Test void wasteFreezesCostDeductsStockAndAudits() throws Exception {
         var record=save("waste",waste("0.750"));
         assertThat(record.get("cost_total").asText()).isEqualTo("15.00");
@@ -65,6 +89,117 @@ class ExpenseWasteIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM waste_audit",Integer.class)).isEqualTo(1);
         jdbc.update("UPDATE products SET current_wac=99,name='Changed' WHERE id=?",product);
         mvc.perform(get("/api/waste/"+record.get("id").asText()).header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("cost_total").value("15.00")).andExpect(jsonPath("product_name").value("Spice"));
+    }
+    @Test void auditHistoryCombinesEventsAndFiltersWithoutChangingRecords() throws Exception {
+        var expenseRecord=save("expenses",expense());
+        save("waste",waste("1"));
+        mvc.perform(get("/api/audit").param("type","EXPENSE").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items.length()").value(1))
+            .andExpect(jsonPath("items[0].entity_type").value("EXPENSE"))
+            .andExpect(jsonPath("items[0].new_values").exists());
+        mvc.perform(get("/api/audit").param("type","WASTE").param("actor",owner.toString()).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items.length()").value(1));
+        mvc.perform(get("/api/audit").param("from","2099-01-01").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items.length()").value(0));
+        mvc.perform(get("/api/audit").param("from","2026-02-01").param("to","2026-01-01").header("Authorization","Bearer "+token))
+            .andExpect(status().isBadRequest());
+    }
+    @Test void auditHistoryRequiresAuditCapability() throws Exception {
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='EMPLOYEE'",owner);
+        mvc.perform(get("/api/audit").header("Authorization","Bearer "+token)).andExpect(status().isForbidden());
+    }
+    @Test void dashboardUsesRealTotalsAndSeparatesUnknownContainerCost() throws Exception {
+        LocalDate today=LocalDate.now(ZoneId.of("Asia/Hebron"));
+        UUID sale=UUID.randomUUID(),container=UUID.randomUUID(),supplier=UUID.randomUUID(),purchase=UUID.randomUUID();
+        jdbc.update("INSERT INTO container_types(id,name,default_price) VALUES (?,'Small',10)",container);
+        jdbc.update("INSERT INTO suppliers(id,name) VALUES (?,'Supplier')",supplier);
+        jdbc.update("""
+            INSERT INTO sales(id,invoice_number,customer_id,customer_name,invoice_date,total,paid,paid_at_sale,payment_method_id,payment_method_name,
+            status,negative_stock,created_by,request_id,request_hash) VALUES (?,'SAL-TEST-1','00000000-0000-0000-0000-000000000001',
+            'Walk-in',?,120,120,120,(SELECT id FROM payment_methods WHERE is_default),'Cash','PAID',false,?,?,'test')
+            """,sale,today,owner,UUID.randomUUID());
+        jdbc.update("""
+            INSERT INTO sale_items(id,sale_id,line_number,product_id,item_name,item_type,selling_mode,quantity,unit_price,line_total,cost_at_sale,cost_total)
+            VALUES (?,?,1,?,'Spice','WEIGHT_PRODUCT','BY_WEIGHT',2,50,100,20,40)
+            """,UUID.randomUUID(),sale,product);
+        jdbc.update("""
+            INSERT INTO sale_items(id,sale_id,line_number,container_type_id,item_name,item_type,selling_mode,quantity,unit_price,line_total)
+            VALUES (?,?,2,?,'Small','SPICE_CONTAINER','BY_PIECE',2,10,20)
+            """,UUID.randomUUID(),sale,container);
+        jdbc.update("INSERT INTO purchase_invoices(id,invoice_number,supplier_id,supplier_name,invoice_date,total,status,created_by,request_id,request_hash) VALUES (?,'PUR-TEST-1',?,'Supplier',?,30,'OPEN',?,?,'test')",
+            purchase,supplier,today,owner,UUID.randomUUID());
+        jdbc.update("INSERT INTO expenses(id,category_id,category_name,amount,expense_date,payment_method_id,payment_method_name,created_by,request_id,request_hash) VALUES (?,?, 'Rent',10,?,(SELECT id FROM payment_methods WHERE is_default),'Cash',?,?,'test')",
+            UUID.randomUUID(),category,today,owner,UUID.randomUUID());
+        mvc.perform(get("/api/dashboard").header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("salesToday").value("120.00")).andExpect(jsonPath("salesMonth").value("120.00"))
+            .andExpect(jsonPath("containerRevenueMonth").value("20.00"))
+            .andExpect(jsonPath("knownCogsMonth").value("40.00"))
+            .andExpect(jsonPath("knownGrossProfitMonth").value("60.00"))
+            .andExpect(jsonPath("estimatedNetProfitMonth").value("50.00"))
+            .andExpect(jsonPath("purchasesMonth").value("30.00"))
+            .andExpect(jsonPath("supplierDebt").value("30.00"));
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='EMPLOYEE'",owner);
+        mvc.perform(get("/api/dashboard").header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("salesMonth").value("120.00"))
+            .andExpect(jsonPath("knownGrossProfitMonth").doesNotExist())
+            .andExpect(jsonPath("purchasesMonth").doesNotExist())
+            .andExpect(jsonPath("expensesMonth").doesNotExist());
+    }
+    @Test void reportsUsePeriodTotalsExcludeCancellationsAndProtectProfit() throws Exception {
+        UUID customer=UUID.randomUUID(),supplier=UUID.randomUUID(),container=UUID.randomUUID();
+        jdbc.update("INSERT INTO customers(id,name) VALUES (?,'Customer')",customer);
+        jdbc.update("INSERT INTO suppliers(id,name) VALUES (?,'Supplier')",supplier);
+        jdbc.update("INSERT INTO container_types(id,name,default_price) VALUES (?,'Small',10)",container);
+        var saleBody=Map.of("requestId",UUID.randomUUID(),"customerId",customer,"invoiceDate","2026-01-01","paidNow","20",
+            "items",List.of(Map.of("productId",product,"mode","BY_WEIGHT","quantity","1","unitPrice","50"),
+                Map.of("containerTypeId",container,"mode","BY_PIECE","quantity","1","unitPrice","10")));
+        var sale=json.readTree(mvc.perform(post("/api/sales").header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(saleBody))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        var purchaseBody=Map.of("requestId",UUID.randomUUID(),"supplierId",supplier,"invoiceDate","2026-01-01","paidNow","20",
+            "items",List.of(Map.of("productId",product,"quantity","1","unitCost","100")));
+        mvc.perform(post("/api/purchases").header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(purchaseBody))).andExpect(status().isCreated());
+        save("expenses",expense());
+        String dates="?from=2026-01-01&to=2026-01-31";
+        mvc.perform(get("/api/reports/sales"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("totals.invoice_count").value(1)).andExpect(jsonPath("totals.total").value("60.00"))
+            .andExpect(jsonPath("totals.outstanding").value("40.00")).andExpect(jsonPath("rows.items.length()").value(1));
+        mvc.perform(get("/api/reports/purchases"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("totals.total").value("100.00")).andExpect(jsonPath("totals.paid").value("20.00"));
+        mvc.perform(get("/api/reports/expenses"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("totals.total").value("125.50"));
+        mvc.perform(get("/api/reports/suppliers"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("totals.purchased").value("100.00")).andExpect(jsonPath("totals.paid").value("20.00"))
+            .andExpect(jsonPath("totals.current_outstanding").value("80.00"));
+        mvc.perform(get("/api/reports/profit"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk())
+            .andExpect(jsonPath("totals.known_revenue").value("50.00"))
+            .andExpect(jsonPath("totals.known_cost").value("20.00"))
+            .andExpect(jsonPath("totals.unknown_cost_revenue").value("10.00"))
+            .andExpect(jsonPath("totals.known_margin_less_expenses").value("-95.50"));
+        mvc.perform(post("/api/sales/"+sale.get("id").asText()+"/cancel").header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"reason\":\"Wrong invoice\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/expenses/"+expenseRecord.get("id").asText()+"/cancel").header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"reason\":\"Entered twice\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/reports/sales"+dates).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("totals.total").value("0.00"));
+        mvc.perform(get("/api/reports/expenses"+dates).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("totals.total").value("0.00"));
+        mvc.perform(get("/api/reports/profit"+dates).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("totals.known_revenue").value("0.00"))
+            .andExpect(jsonPath("totals.unknown_cost_revenue").value("0.00"));
+        mvc.perform(get("/api/reports/sales?from=2026-02-01&to=2026-02-28").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("totals.total").value("0.00"));
+        mvc.perform(get("/api/reports/sales?from=2026-02-01&to=2026-01-01").header("Authorization","Bearer "+token))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("INVALID_DATE_RANGE"));
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='EMPLOYEE'",owner);
+        mvc.perform(get("/api/reports/sales"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        mvc.perform(get("/api/reports/profit"+dates).header("Authorization","Bearer "+token)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/reports/purchases"+dates).header("Authorization","Bearer "+token)).andExpect(status().isForbidden());
     }
     @Test void unknownCostAndNegativeStockRemainExplicit() throws Exception {
         jdbc.update("UPDATE products SET current_wac=NULL WHERE id=?",product);

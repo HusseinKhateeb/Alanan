@@ -53,8 +53,10 @@ function SaleEditor({ userId }: { userId: string }) {
     return () => subscription.unsubscribe()
   }, [userId, draft?.requestId, draft?.submitted])
   function update(next: SaleDraft) {
-    setDraft(next)
-    void saveSaleDraft(userId, next).then(() => setStorageFailed(false)).catch(() => setStorageFailed(true))
+    const payable = next.autoPayFull && next.items !== draft?.items ? preview(next.items, '0') : null
+    const value = payable ? { ...next, paidNow: payable.total } : next
+    setDraft(value)
+    void saveSaleDraft(userId, value).then(() => setStorageFailed(false)).catch(() => setStorageFailed(true))
   }
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -78,6 +80,12 @@ function SaleEditor({ userId }: { userId: string }) {
   async function startNew() {
     try { const next = newSale(); await saveSaleDraft(userId, next); setDraft(next); setQueued(false); setError(null); setStorageFailed(false) }
     catch { setStorageFailed(true) }
+  }
+  function addLine() {
+    if (!draft) return
+    const item = newItem()
+    update({ ...draft, items: [...draft.items, item] })
+    requestAnimationFrame(() => document.getElementById('sale-line-' + item.localId + '-search')?.focus())
   }
   const locked = busy || !!draft?.submitted
   const totals = draft ? preview(draft.items, draft.paidNow) : null
@@ -106,12 +114,12 @@ function SaleEditor({ userId }: { userId: string }) {
         {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1}
           onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
           onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })} />)}
-        <button type="button" disabled={locked || draft.items.length >= 100} onClick={() => update({ ...draft, items: [...draft.items, newItem()] })}>{t('purchase.addLine')}</button>
+        <button type="button" disabled={locked || draft.items.length >= 100} onClick={addLine}>{t('purchase.addLine')}</button>
         <fieldset disabled={locked} className="purchase-header-fields">
           <label>{t('purchase.paidNow')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.paidNow}
-            onChange={event => update({ ...draft, paidNow: event.target.value })} aria-invalid={!!error?.fieldErrors.paidNow} />
+            onChange={event => update({ ...draft, paidNow: event.target.value, autoPayFull: false })} aria-invalid={!!error?.fieldErrors.paidNow} />
             {error?.fieldErrors.paidNow && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
-          <button type="button" disabled={locked || !totals} onClick={() => totals && update({ ...draft, paidNow: totals.total })}>{t('sales.payFull')}</button>
+          <button type="button" disabled={locked || !totals} onClick={() => totals && update({ ...draft, paidNow: totals.total, autoPayFull: true })}>{t('sales.payFull')}</button>
           <ReferenceSelector kind="payment-methods" id="purchase-payment" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />
           <label>{t('master.notes')}<textarea maxLength={2000} value={draft.notes} onChange={event => update({ ...draft, notes: event.target.value })} /></label>
         </fieldset>

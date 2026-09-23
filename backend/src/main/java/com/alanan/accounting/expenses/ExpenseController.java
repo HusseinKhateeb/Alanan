@@ -16,4 +16,5 @@ public class ExpenseController {
     public Object create(@Valid @RequestBody ExpenseRequest request,@AuthenticationPrincipal AuthUser user) { return service.create(request,user); }
     @GetMapping public Object list(@RequestParam(defaultValue="0") int page,@RequestParam(required=false) LocalDate from,@RequestParam(required=false) LocalDate to,@RequestParam(required=false) UUID categoryId) { return service.list(page,from,to,categoryId); }
     @GetMapping("/{id}") public Object detail(@PathVariable UUID id) { return service.detail(id); }
+    @PostMapping("/{id}/cancel") public Object cancel(@PathVariable UUID id,@Valid @RequestBody com.alanan.accounting.common.api.CancelRecordRequest request,@AuthenticationPrincipal AuthUser user) { return service.cancel(id,request,user); }
 }

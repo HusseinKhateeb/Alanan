@@ -86,7 +86,7 @@ function Editor({ userId, kind }: { userId: string; kind: OperationKind }) {
         <label>{t('master.notes')}<textarea maxLength={2000} value={draft.notes} onChange={event => update({ ...draft, notes: event.target.value })} /></label>
       </fieldset>
       {error && <p role="alert">{t('errors.' + error.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
-      <button className="primary-button" disabled={busy || (!draft.submitted && (!draft.reference || !draft.value || (kind === 'waste' && !draft.reason.trim())))}>{t(busy ? 'master.saving' : draft.submitted ? 'operations.retry' : 'operations.save')}</button>
+      <div className="entry-save-bar"><button className="primary-button" disabled={busy || (!draft.submitted && (!draft.reference || !draft.value || (kind === 'waste' && !draft.reason.trim())))}>{t(busy ? 'master.saving' : draft.submitted ? 'operations.retry' : 'operations.save')}</button></div>
       </form></>}
   </main>
 }

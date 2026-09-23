@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.*;
 public class CustomerPaymentController {
     private final CustomerPaymentService service;
     private final CustomerPaymentQueries queries;
-    public CustomerPaymentController(CustomerPaymentService service,CustomerPaymentQueries queries) { this.service=service; this.queries=queries; }
+    private final com.alanan.accounting.common.api.PaymentCancellationService cancellations;
+    public CustomerPaymentController(CustomerPaymentService service,CustomerPaymentQueries queries,com.alanan.accounting.common.api.PaymentCancellationService cancellations) { this.service=service; this.queries=queries; this.cancellations=cancellations; }
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     Object create(@Valid @RequestBody CustomerPaymentRequest request,@AuthenticationPrincipal AuthUser user) { return service.create(request,user); }
@@ -23,4 +24,6 @@ public class CustomerPaymentController {
     Object openInvoices(@RequestParam UUID customerId,@RequestParam(defaultValue="0") int page) { return queries.openInvoices(customerId,page); }
     @GetMapping("/{id}")
     Object detail(@PathVariable UUID id) { return queries.detail(id); }
+    @PostMapping("/{id}/cancel")
+    Object cancel(@PathVariable UUID id,@Valid @RequestBody com.alanan.accounting.common.api.CancelRecordRequest request,@AuthenticationPrincipal AuthUser user) { return cancellations.customer(id,request,user); }
 }

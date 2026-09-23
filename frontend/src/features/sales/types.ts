@@ -11,12 +11,13 @@ export interface SaleRequest {
 export interface SaleReceipt { id: string; invoiceNumber: string; total: string; paid: string; outstanding: string; status: string; negativeStock: boolean }
 export interface SaleDraft {
   requestId: string; customer: ReferenceRecord | null; invoiceDate: string; notes: string; paidNow: string
-  paymentMethod: ReferenceRecord | null; items: SaleLine[]; submitted?: SaleRequest; receipt?: SaleReceipt
+  paymentMethod: ReferenceRecord | null; items: SaleLine[]; autoPayFull?: boolean; submitted?: SaleRequest; receipt?: SaleReceipt
 }
 export interface SaleSummary { id: string; invoice_number: string; customer_id: string; customer_name: string; invoice_date: string; total: string; paid: string; outstanding: string; status: string; negative_stock: boolean }
 export interface SaleDetail extends SaleSummary {
   paid_at_sale: string
-  payments: { id: string; payment_date: string; payment_method_name: string; amount: string }[]
+  payments: { id: string; payment_date: string; payment_method_name: string; amount: string; active: boolean }[]
   notes: string | null; payment_method_name: string | null
+  cancellation?: { reason: string; refund_amount: string; refund_method_name: string | null; created_at: string } | null
   items: { item_name: string; item_type: string; selling_mode: SaleMode; quantity: string; unit_price: string; requested_amount: string | null; line_total: string; cost_at_sale?: string | null; cost_total?: string | null }[]
 }

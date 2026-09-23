@@ -11,7 +11,7 @@ import { newSale, saveSaleDraft } from './drafts'
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'buyer', permissions: ['SALES_CREATE', 'SALES_VIEW'] } }) }))
 const customer = { id: 'customer', name: 'Supplier', active: true, version: 0 }
-const product = { id: 'spice', name: 'Spice', tracking_type: 'WEIGHT', active: true, version: 0 }
+const product = { id: 'spice', name: 'Spice', tracking_type: 'WEIGHT', default_selling_price: '20.00', active: true, version: 0 }
 beforeEach(async () => { await i18n.changeLanguage('en'); await localDrafts.saleDrafts.clear(); await localDrafts.outbox.clear(); setAccessToken('test-token', 'buyer') })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); setAccessToken(null) })
 function mount() {
@@ -72,6 +72,18 @@ test('walk-in sale requires full payment before saving', async () => {
   expect(await screen.findByRole('button', { name: 'Queue sale' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Pay full total' }))
   expect(screen.getByRole('button', { name: 'Queue sale' })).toBeEnabled()
+})
+
+test('one-tap product selection keeps a new walk-in sale paid in full while quantities change', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Spice' }))
+  expect(screen.getByLabelText(/Paid now/)).toHaveValue('20.00')
+  fireEvent.change(screen.getByLabelText('kg'), { target: { value: '2' } })
+  expect(screen.getByLabelText(/Paid now/)).toHaveValue('40.00')
+  fireEvent.change(screen.getByLabelText(/Paid now/), { target: { value: '10.00' } })
+  fireEvent.change(screen.getByLabelText('kg'), { target: { value: '3' } })
+  expect(screen.getByLabelText(/Paid now/)).toHaveValue('10.00')
 })
 
 test('offline form loads cached references even when network queries would be paused', async () => {
