@@ -17,6 +17,13 @@ public class MasterDataService {
     public MasterDataService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     public record Page(List<Map<String,Object>> items, boolean hasMore) {}
 
+    @Transactional
+    @PreAuthorize("hasAuthority('SALES_CREATE')")
+    public Map<String,Object> quickCreateCustomer(QuickCustomerInput input, AuthUser user) {
+        return save(Catalog.CUSTOMERS, null,
+            new MasterDataInput(input.name(), null, null, null, null, input.phone(), null, null, true, null, 0L), user);
+    }
+
     public Page list(Catalog catalog, String query, int page, boolean activeOnly, String phone, AuthUser user) {
         requireRead(catalog, user);
         if (page < 0 || query.length() > 200 || (phone != null && phone.length() > 60)) fail("VALIDATION_FAILED");

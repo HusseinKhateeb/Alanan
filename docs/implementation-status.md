@@ -71,7 +71,7 @@
 - Capability restrictions, hidden cost fields, exact-request retries and durable bilingual forms.
 - Waste history filters by dates/product; product units locked after waste history.
 
-This is not a completed V1 release. Automatic synchronization for non-sales workflows, full reports, PDFs and backups are not implemented. Historical invoice editing remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory. See the requirement-by-requirement [v6 specification review](specification-review.md).
+This is not a completed V1 release. Automatic synchronization for non-sales workflows, report exports, PDFs and backups are not implemented. Historical invoice editing remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory. See the requirement-by-requirement [v6 specification review](specification-review.md).
 
 ## Implemented: read-only audit history
 
@@ -190,3 +190,11 @@ Database integration checks use isolated PostgreSQL Testcontainers. PWA installa
 - Customer and supplier payments can be cancelled by an authorized user after refund confirmation. Allocations remain in the database as history but become inactive; the affected invoices and balances are recalculated atomically. Payments tied to cancelled invoices cannot be reversed independently because that invoice already has a refund record.
 - Payment detail and history show cancellation status. The user must still handle the real-world refund; there is no bank integration or cash ledger. The migration is V11 and was verified only on disposable PostgreSQL Testcontainers databases, not the configured Neon database.
 - Backend Maven verify passed 76 tests, including reversals and the cancelled-invoice guard. Frontend lint, 42 tests and a production build passed. Real-browser acceptance remains pending.
+
+## Date-filtered accounting reports - 2026-09-23
+
+- The authenticated Reports screen shows paginated sales, purchases, expenses, supplier balances and known-cost profit, with period totals independent of pagination and Arabic/English labels.
+- Sales/purchase/expense totals exclude cancelled records. Purchase and supplier paid figures use active allocations after payment reversal. Profit separates revenue without known cost and labels known margin less expenses as an estimate, not exact net profit.
+- Supplier purchased/paid figures use the selected period; current debt is explicitly a live all-time balance. Report views enforce the underlying sales, purchases, expenses and cost permissions.
+- No new migration or external service is required. CSV/PDF export, historical as-of supplier balances and full cost reconciliation remain open work. The report suite used isolated PostgreSQL Testcontainers databases; the configured Neon database was not accessed.
+- Backend Maven verify passed 77 tests, including report totals, cancellation effects, date validation and permission checks. Frontend lint, 42 tests and the production PWA build passed. Browser/device acceptance remains pending.

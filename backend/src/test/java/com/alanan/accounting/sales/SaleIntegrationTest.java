@@ -57,6 +57,16 @@ class SaleIntegrationTest {
         mvc.perform(post("/api/sales").header("Authorization","Bearer "+token).contentType("application/json").content(json.writeValueAsString(body)))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value(code));
     }
+    @Test void invoicePdfRequiresAuthenticationAndReturnsPdf() throws Exception {
+        var result=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        var path="/api/sales/"+result.get("id").asText()+"/pdf";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        var response=mvc.perform(get(path).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(header().string("Content-Type","application/pdf"))
+            .andExpect(header().string("Content-Disposition",org.hamcrest.Matchers.containsString("attachment")))
+            .andReturn().getResponse();
+        assertThat(new String(response.getContentAsByteArray(),0,5,java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+    }
     @Test void mixedSaleFreezesCostsAndNamesAndUpdatesBalances() throws Exception {
         var result=create(request("100",List.of(item(spice,"BY_WEIGHT","1.250","45"),item(honey,"BY_PIECE","2","80"),Map.of("containerTypeId",container,"mode","BY_PIECE","quantity","20","unitPrice","1.50"))));
         assertThat(result.get("total").asText()).isEqualTo("246.25");

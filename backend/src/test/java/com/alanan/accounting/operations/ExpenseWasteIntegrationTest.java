@@ -91,7 +91,7 @@ class ExpenseWasteIntegrationTest {
         mvc.perform(get("/api/waste/"+record.get("id").asText()).header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("cost_total").value("15.00")).andExpect(jsonPath("product_name").value("Spice"));
     }
     @Test void auditHistoryCombinesEventsAndFiltersWithoutChangingRecords() throws Exception {
-        var expenseRecord=save("expenses",expense());
+        save("expenses",expense());
         save("waste",waste("1"));
         mvc.perform(get("/api/audit").param("type","EXPENSE").header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("items.length()").value(1))
@@ -159,9 +159,9 @@ class ExpenseWasteIntegrationTest {
             .content(json.writeValueAsString(saleBody))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
         var purchaseBody=Map.of("requestId",UUID.randomUUID(),"supplierId",supplier,"invoiceDate","2026-01-01","paidNow","20",
             "items",List.of(Map.of("productId",product,"quantity","1","unitCost","100")));
-        mvc.perform(post("/api/purchases").header("Authorization","Bearer "+token).contentType("application/json")
-            .content(json.writeValueAsString(purchaseBody))).andExpect(status().isCreated());
-        save("expenses",expense());
+        var purchase=json.readTree(mvc.perform(post("/api/purchases").header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(purchaseBody))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        var expenseRecord=save("expenses",expense());
         String dates="?from=2026-01-01&to=2026-01-31";
         mvc.perform(get("/api/reports/sales"+dates).header("Authorization","Bearer "+token)).andExpect(status().isOk())
             .andExpect(jsonPath("totals.invoice_count").value(1)).andExpect(jsonPath("totals.total").value("60.00"))
@@ -191,6 +191,13 @@ class ExpenseWasteIntegrationTest {
         mvc.perform(get("/api/reports/profit"+dates).header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("totals.known_revenue").value("0.00"))
             .andExpect(jsonPath("totals.unknown_cost_revenue").value("0.00"));
+        UUID paymentId=jdbc.queryForObject("SELECT payment_id FROM supplier_payment_allocations WHERE purchase_invoice_id=?",UUID.class,UUID.fromString(purchase.get("id").asText()));
+        mvc.perform(post("/api/supplier-payments/"+paymentId+"/cancel").header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"reason\":\"Bank reversal\",\"refundConfirmed\":true}"))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/reports/suppliers"+dates).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("totals.paid").value("0.00"))
+            .andExpect(jsonPath("totals.current_outstanding").value("100.00"));
         mvc.perform(get("/api/reports/sales?from=2026-02-01&to=2026-02-28").header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("totals.total").value("0.00"));
         mvc.perform(get("/api/reports/sales?from=2026-02-01&to=2026-01-01").header("Authorization","Bearer "+token))

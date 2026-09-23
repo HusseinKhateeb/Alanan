@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, ApiError } from '../../api/client'
+import { api, ApiError, downloadPdf } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 import type { PurchaseDetail } from './types'
 import { ReferenceSelector } from './ReferenceSelector'
@@ -18,9 +18,18 @@ export function PurchaseDetailPage() {
   const [refundMethod, setRefundMethod] = useState<ReferenceRecord | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<ApiError | null>(null)
+  const [pdfError, setPdfError] = useState<ApiError | null>(null)
+  const [downloading, setDownloading] = useState(false)
   const allowed = !!user?.permissions.includes('PURCHASES_VIEW')
   const result = useQuery({ queryKey: ['purchases', user?.id, 'detail', id], queryFn: () => api<PurchaseDetail>('/purchases/' + id), enabled: allowed, retry: false })
   const invoice = result.data
+  async function download() {
+    if (!invoice || downloading) return
+    setDownloading(true); setPdfError(null)
+    try { await downloadPdf('/purchases/' + invoice.id + '/pdf', 'purchase-' + invoice.invoice_number + '.pdf') }
+    catch (failure) { setPdfError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
+    finally { setDownloading(false) }
+  }
 
   async function cancel(event: FormEvent) {
     event.preventDefault()
@@ -37,6 +46,8 @@ export function PurchaseDetailPage() {
 
   if (!allowed) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
   return <main><Link to="/purchases">{t('purchase.list')}</Link>
+    {invoice && <button type="button" onClick={() => void download()} disabled={downloading}>{t('invoice.downloadPdf')}</button>}
+    {pdfError && <p role="alert">{t('errors.' + pdfError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {result.isPending && <p role="status">{t('master.loading')}</p>}
     {result.error && <p role="alert">{t('errors.' + (result.error instanceof ApiError ? result.error.code : 'SERVER_ERROR'))}</p>}
     {invoice && <>

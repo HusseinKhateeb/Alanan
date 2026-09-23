@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, ApiError } from '../../api/client'
+import { api, ApiError, downloadPdf } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 import type { SaleDetail } from './types'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
@@ -17,10 +17,19 @@ export function SaleDetailPage() {
   const [refundMethod, setRefundMethod] = useState<ReferenceRecord | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<ApiError | null>(null)
+  const [pdfError, setPdfError] = useState<ApiError | null>(null)
+  const [downloading, setDownloading] = useState(false)
   const allowed = !!user?.permissions.includes('SALES_VIEW')
   const result = useQuery({ queryKey: ['sales', user?.id, id], enabled: allowed, retry: false, queryFn: () => api<SaleDetail>('/sales/' + id) })
   if (!allowed) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
   const sale = result.data
+  async function download() {
+    if (!sale || downloading) return
+    setDownloading(true); setPdfError(null)
+    try { await downloadPdf('/sales/' + sale.id + '/pdf', 'sale-' + sale.invoice_number + '.pdf') }
+    catch (failure) { setPdfError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
+    finally { setDownloading(false) }
+  }
   async function cancel(event: FormEvent) {
     event.preventDefault()
     if (!sale || cancelling) return
@@ -32,6 +41,8 @@ export function SaleDetailPage() {
     finally { setCancelling(false) }
   }
   return <main><Link to="/sales">{t('sales.list')}</Link><h1>{sale?.invoice_number ?? t('purchase.view')}</h1>
+    {sale && <button type="button" onClick={() => void download()} disabled={downloading}>{t('invoice.downloadPdf')}</button>}
+    {pdfError && <p role="alert">{t('errors.' + pdfError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {result.isPending && <p role="status">{t('master.loading')}</p>}
     {result.error && <p role="alert">{t('errors.' + (result.error instanceof ApiError ? result.error.code : 'SERVER_ERROR'))}</p>}
     {sale && <><p>{sale.customer_name} · {sale.invoice_date}</p><p>{t('purchase.' + sale.status)}</p>

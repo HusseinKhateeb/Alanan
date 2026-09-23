@@ -133,6 +133,24 @@ class AuthenticationIntegrationTest {
             .content("{\"name\":\"Blocked\",\"active\":true,\"version\":0}"))
             .andExpect(status().isForbidden());
     }
+    @Test void salesEmployeeCanQuickCreateCustomerWithOptionalPhoneButCannotEditRecords() throws Exception {
+        employee(); String token = login("employee", PASSWORD).get("accessToken").asText();
+        mvc.perform(post("/api/customers/quick").contentType("application/json").content("{\"name\":\"Anonymous\"}"))
+            .andExpect(status().isUnauthorized());
+        var created = json.readTree(mvc.perform(post("/api/customers/quick").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"  New customer  \",\"phone\":\"0599123456\"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("name").value("New customer"))
+            .andExpect(jsonPath("phone").value("0599123456")).andReturn().getResponse().getContentAsString());
+        mvc.perform(post("/api/customers/quick").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"Duplicate\",\"phone\":\"0599 123456\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("CUSTOMER_PHONE_EXISTS"));
+        mvc.perform(post("/api/customers/quick").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"No phone\"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("phone").isEmpty());
+        mvc.perform(put("/api/customers/" + created.get("id").asText()).header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"Changed\",\"active\":true,\"version\":0}"))
+            .andExpect(status().isForbidden());
+    }
     @Test void migrationsAndBootstrapCreateHashedAdminOnce() throws Exception {
         String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE username='owner'", String.class);
         assertThat(hash).isNotEqualTo(PASSWORD);

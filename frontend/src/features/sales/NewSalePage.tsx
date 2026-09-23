@@ -9,6 +9,7 @@ import { ApiError } from '../../api/client'
 import { localDrafts } from '../../db/masterDataDrafts'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import { SaleLineEditor } from './SaleLineEditor'
+import { QuickCustomerForm } from './QuickCustomerForm'
 import { newItem, newSale, saveSaleDraft, toRequest } from './drafts'
 import { preview } from './calculations'
 import { useFormUpdateGuard } from '../../app/pwa/formUpdateGuard'
@@ -30,6 +31,7 @@ function SaleEditor({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [storageFailed, setStorageFailed] = useState(false)
+  const [customerForm, setCustomerForm] = useState(false)
   useFormUpdateGuard(!!draft && !draft.receipt)
   useEffect(() => {
     let current = true
@@ -78,7 +80,7 @@ function SaleEditor({ userId }: { userId: string }) {
     } finally { setBusy(false) }
   }
   async function startNew() {
-    try { const next = newSale(); await saveSaleDraft(userId, next); setDraft(next); setQueued(false); setError(null); setStorageFailed(false) }
+    try { const next = newSale(); await saveSaleDraft(userId, next); setDraft(next); setQueued(false); setError(null); setStorageFailed(false); setCustomerForm(false) }
     catch { setStorageFailed(true) }
   }
   function addLine() {
@@ -105,9 +107,14 @@ function SaleEditor({ userId }: { userId: string }) {
       {queued && <section role="status"><p>{t('offline.queued')}</p><button disabled={busy} onClick={() => void startNew()}>{t('sales.another')}</button></section>}
       {draft.submitted && <p role="status" className="duplicate">{t('sales.pendingRetry')}</p>}
       <p>{t('sales.walkInHelp')}</p>
+      {customerForm && <QuickCustomerForm onClose={() => setCustomerForm(false)} onSelect={customer => {
+        update({ ...draft, customer }); setCustomerForm(false)
+        void client.invalidateQueries({ queryKey: ['purchase-reference', userId, 'customers'] })
+      }} />}
       <form onSubmit={submit}>
         <fieldset disabled={locked} className="purchase-header-fields">
-          <ReferenceSelector kind="customers" id="sale-customer" value={draft.customer} disabled={locked} onChange={customer => update({ ...draft, customer })} />
+          <ReferenceSelector kind="customers" combined id="sale-customer" value={draft.customer} disabled={locked} onChange={customer => update({ ...draft, customer })} />
+          <button type="button" disabled={locked} onClick={() => setCustomerForm(open => !open)}>{t('sales.newCustomer')}</button>
           <label>{t('purchase.date')}<input required type="date" value={draft.invoiceDate} aria-invalid={!!error?.fieldErrors.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} />
             {error?.fieldErrors.invoiceDate && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
         </fieldset>
@@ -127,7 +134,7 @@ function SaleEditor({ userId }: { userId: string }) {
         {totals?.overpaid && <p role="alert" className="error">{t('errors.PAYMENT_EXCEEDS_TOTAL')}</p>}
         <div className="purchase-save-bar">
           <div><strong>{t('purchase.total')}: {totals?.total ?? '—'} ₪</strong><span>{t('purchase.outstanding')}: {totals?.outstanding ?? '—'} ₪</span></div>
-          <button className="primary-button" disabled={busy || (!draft.submitted && (!totals || totals.overpaid || draft.items.some(item => !item.reference) || ((!draft.customer || draft.customer.is_walk_in) && totals.outstanding !== '0.00')))}>{t(busy ? 'master.saving' : draft.submitted ? 'sales.retry' : 'offline.save')}</button>
+          <button className="primary-button" disabled={busy || customerForm || (!draft.submitted && (!totals || totals.overpaid || draft.items.some(item => !item.reference) || ((!draft.customer || draft.customer.is_walk_in) && totals.outstanding !== '0.00')))}>{t(busy ? 'master.saving' : draft.submitted ? 'sales.retry' : 'offline.save')}</button>
         </div>
       </form>
     </>}

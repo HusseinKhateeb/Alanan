@@ -267,7 +267,10 @@
     "pieces": "قطع",
     "cost": "التكلفة عند البيع",
     "customerBalances": "أرصدة العملاء",
-    "sold": "إجمالي المبيعات"
+    "sold": "إجمالي المبيعات",
+    "newCustomer": "+ عميل جديد",
+    "saveCustomer": "حفظ واختيار العميل",
+    "cancelNewCustomer": "إلغاء"
   },
   "customerPayments": {
     "new": "دفعة جديدة من العميل",
@@ -414,5 +417,8 @@
     "CONTAINERS": "أنواع العبوات",
     "PAYMENTS": "طرق الدفع",
     "EXPENSES": "فئات المصروفات"
+  },
+  "invoice": {
+    "downloadPdf": "تنزيل PDF"
   }
 }

@@ -267,7 +267,10 @@
     "pieces": "Pieces",
     "cost": "Cost at sale",
     "customerBalances": "Customer balances",
-    "sold": "Total sold"
+    "sold": "Total sold",
+    "newCustomer": "+ New customer",
+    "saveCustomer": "Save and select customer",
+    "cancelNewCustomer": "Cancel"
   },
   "customerPayments": {
     "new": "New customer payment",
@@ -414,5 +417,8 @@
     "CONTAINERS": "Container types",
     "PAYMENTS": "Payment methods",
     "EXPENSES": "Expense categories"
+  },
+  "invoice": {
+    "downloadPdf": "Download PDF"
   }
 }
