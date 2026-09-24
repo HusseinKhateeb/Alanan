@@ -29,7 +29,7 @@ function authenticatedFetch(preferredLanguage = 'en', permissions = ['USERS_MANA
   return vi.fn(async (url: string) => {
     if (url.endsWith('/auth/login')) return response({ accessToken: 'memory-only-token', expiresAt: new Date(Date.now() + 1800000).toISOString(), user: { ...user, preferredLanguage, permissions } })
     if (url === '/actuator/health') return response({ status: 'UP' })
-    if (url.endsWith('/auth/logout') || url.endsWith('/auth/language')) return response(null, 204)
+    if (url.endsWith('/auth/logout-current') || url.endsWith('/auth/language')) return response(null, 204)
     return response([])
   })
 }
@@ -112,13 +112,34 @@ test('invalid credentials are translated and do not open the workspace', async (
   expect(screen.queryByRole('heading', { name: 'A clear start to every day.' })).not.toBeInTheDocument()
 })
 
-test('logout calls the server with the token, then closes the workspace', async () => {
+test('account page shows details and signs out only this session', async () => {
   const fetch = authenticatedFetch()
   vi.stubGlobal('fetch', fetch)
   mount(); await submit()
-  fireEvent.click(await screen.findByRole('button', { name: 'Sign out of all sessions' }))
+  fireEvent.click(await screen.findByRole('link', { name: 'Owner' }))
+  expect(await screen.findByRole('heading', { name: 'My account' })).toBeInTheDocument()
+  expect(screen.getByText('owner')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Sign out of this session' }))
   await screen.findByRole('heading', { name: 'Welcome back' })
-  const call = (fetch.mock.calls as unknown as [string, RequestInit][]).find(([url]) => url.endsWith('/auth/logout'))
+  const call = (fetch.mock.calls as unknown as [string, RequestInit][]).find(([url]) => url.endsWith('/auth/logout-current'))
+  expect(new Headers(call?.[1].headers).get('Authorization')).toBe('Bearer memory-only-token')
+})
+
+test('changing password signs out after the server revokes existing sessions', async () => {
+  const base = authenticatedFetch()
+  const fetch = vi.fn(async (url: string, options?: RequestInit) =>
+    url.endsWith('/auth/password') && options?.method === 'PUT' ? response(null, 204) : base(url))
+  vi.stubGlobal('fetch', fetch)
+  mount(); await submit()
+  fireEvent.click(await screen.findByRole('link', { name: 'Owner' }))
+  await screen.findByRole('heading', { name: 'My account' })
+  fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-password' } })
+  fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a-new-strong-password' } })
+  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'a-new-strong-password' } })
+  fireEvent.submit(screen.getByRole('button', { name: 'Save password and sign in again' }).closest('form')!)
+  await screen.findByRole('heading', { name: 'Welcome back' })
+  const call = (fetch.mock.calls as unknown as [string, RequestInit][]).find(([url]) => url.endsWith('/auth/password'))
+  expect(JSON.parse(call?.[1].body as string)).toEqual({ currentPassword: 'old-password', newPassword: 'a-new-strong-password' })
   expect(new Headers(call?.[1].headers).get('Authorization')).toBe('Bearer memory-only-token')
 })
 

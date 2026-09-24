@@ -71,7 +71,7 @@ async function request(path: string, options: RequestInit = {}): Promise<Respons
   const headers = new Headers(options.headers)
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   if (requestToken && path !== '/auth/refresh' && path !== '/auth/login') headers.set('Authorization', `Bearer ${requestToken}`)
-  const sessionEndpoint = path === '/auth/login' || path === '/auth/refresh' || path === '/auth/logout'
+  const sessionEndpoint = path === '/auth/login' || path === '/auth/refresh' || path === '/auth/logout' || path === '/auth/logout-current'
   if (path === '/auth/refresh') headers.set('X-Alanan-Session', 'refresh')
   let response: Response
   try {

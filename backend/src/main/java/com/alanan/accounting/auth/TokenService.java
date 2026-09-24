@@ -13,12 +13,12 @@ public class TokenService {
     public record Token(String accessToken, Instant expiresAt, AuthUser user) {
         @Override public String toString() { return "Token[REDACTED]"; }
     }
-    public Token issue(AuthUser user, long version) {
+    public Token issue(AuthUser user, long version, UUID sessionId) {
         Instant now = Instant.now();
         Instant expires = now.plusSeconds(1800);
         var claims = JwtClaimsSet.builder().issuer("alanan").subject(user.id().toString())
             .issuedAt(now).expiresAt(expires).id(UUID.randomUUID().toString())
-            .claim("ver", version).build();
+            .claim("ver", version).claim("sid", sessionId.toString()).build();
         String token = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
         return new Token(token, expires, user);
     }

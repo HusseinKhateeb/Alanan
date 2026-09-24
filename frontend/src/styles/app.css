@@ -16,6 +16,19 @@
 }
 .account-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .account-name { font-size: 14px; }
+.account-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: #f1dfc3; font-weight: 700; text-decoration: none; }
+.account-page { max-width: 760px; }
+.account-card { padding: 22px; margin: 16px 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.account-card h2 { margin-top: 0; }
+.account-card p { color: var(--muted); }
+.account-details { display: grid; gap: 12px; margin: 0; }
+.account-details div { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 12px; padding-block: 8px; border-bottom: 1px solid var(--line); }
+.account-details dt { color: var(--muted); }
+.account-details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.account-password-form { display: grid; gap: 14px; max-width: 470px; }
+.account-password-form label { display: grid; gap: 6px; font-weight: 600; }
+.account-password-form input { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.account-password-form button { justify-self: start; }
 .login-page { max-width: 520px; }
 .login-card { padding: 32px; background: #fffef9; border: 1px solid #dec39c; border-radius: 18px; }
 .login-card h1 { font-size: 32px; }

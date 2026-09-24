@@ -35,14 +35,14 @@ class SupplierPaymentIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired AdminBootstrap bootstrap;
     @Autowired IdentityRepository identities;
-    @Autowired TokenService tokens;
+    @Autowired AuthService auth;
     UUID supplier,product,owner;
     String token;
     @BeforeEach void setup() {
         jdbc.execute("TRUNCATE users,products,suppliers,invoice_counters CASCADE");
         bootstrap.run(new DefaultApplicationArguments());
         owner=identities.credentials("owner").orElseThrow().id();
-        token=tokens.issue(identities.activeUser(owner,0).orElseThrow(),0).accessToken();
+        token=auth.login("owner", PASSWORD, UUID.randomUUID().toString()).access().accessToken();
         supplier=UUID.randomUUID();product=UUID.randomUUID();
         jdbc.update("INSERT INTO suppliers(id,name) VALUES (?,'Supplier')",supplier);
         jdbc.update("INSERT INTO products(id,code,name,category,tracking_type,default_selling_price) VALUES (?,'S','Spice','SPICE','WEIGHT',45)",product);

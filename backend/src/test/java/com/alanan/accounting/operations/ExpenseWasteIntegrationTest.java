@@ -31,13 +31,13 @@ class ExpenseWasteIntegrationTest {
         p.add("app.bootstrap.enabled",()->true);p.add("app.bootstrap.username",()->"owner");p.add("app.bootstrap.password",()->PASSWORD);
     }
     @Autowired MockMvc mvc; @Autowired JdbcTemplate jdbc; @Autowired ObjectMapper json;
-    @Autowired AdminBootstrap bootstrap; @Autowired IdentityRepository identities; @Autowired TokenService tokens;
+    @Autowired AdminBootstrap bootstrap; @Autowired IdentityRepository identities; @Autowired AuthService auth;
     UUID product,category,owner;String token;
     @BeforeEach void setup() {
         jdbc.execute("TRUNCATE users,products,expense_categories,container_types,suppliers CASCADE");
         jdbc.update("DELETE FROM customers WHERE NOT is_walk_in");
         bootstrap.run(new DefaultApplicationArguments());
-        owner=identities.credentials("owner").orElseThrow().id(); token=tokens.issue(identities.activeUser(owner,0).orElseThrow(),0).accessToken();
+        owner=identities.credentials("owner").orElseThrow().id(); token=auth.login("owner", PASSWORD, UUID.randomUUID().toString()).access().accessToken();
         product=UUID.randomUUID();category=UUID.randomUUID();
         jdbc.update("INSERT INTO products(id,code,name,category,tracking_type,default_selling_price,current_stock,current_wac) VALUES (?,'S','Spice','SPICE','WEIGHT',45,10,20)",product);
         jdbc.update("INSERT INTO expense_categories(id,name) VALUES (?,'Rent')",category);

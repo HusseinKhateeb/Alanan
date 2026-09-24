@@ -9,6 +9,7 @@ import { UpdateNotice } from './pwa/UpdateNotice'
 import { AuthProvider, useAuth } from '../auth/AuthProvider'
 import { LoginPage } from '../auth/LoginPage'
 import { AccountControls } from '../auth/AccountControls'
+import { AccountPage } from '../auth/AccountPage'
 import { catalogs, canRead } from '../features/masterdata/catalogs'
 import { DashboardOverview } from '../features/dashboard/DashboardOverview'
 
@@ -98,11 +99,12 @@ function AuthenticatedApp() {
       <img src="/icon.svg" alt="" width="44" height="44" />
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
     </Link><AccountControls /></header>
-    {user && offline ? <Routes><Route path="/sales/new" element={<NewSalePage />} /><Route path="*" element={<OfflineWorkspace />} /></Routes>
+    {user && offline ? <Routes><Route path="/account" element={<AccountPage />} /><Route path="/sales/new" element={<NewSalePage />} /><Route path="*" element={<OfflineWorkspace />} /></Routes>
     : user ? <Suspense fallback={<main role="status">{t('master.loading')}</main>}><Routes>
       <Route path="/reports/:kind" element={<ReportPage />} />
       <Route path="/audit" element={<AuditPage />} />
       <Route path="/backups" element={<BackupPage />} />
+      <Route path="/account" element={<AccountPage />} />
       <Route path="/expenses" element={<OperationHistoryPage kind="expenses" />} /><Route path="/expenses/new" element={<OperationEntryPage kind="expenses" />} />
       <Route path="/waste" element={<OperationHistoryPage kind="waste" />} /><Route path="/waste/new" element={<OperationEntryPage kind="waste" />} />
       <Route path="/customer-payments/new" element={<NewCustomerPaymentPage />} /><Route path="/customer-payments" element={<CustomerPaymentHistoryPage />} /><Route path="/customer-payments/:id" element={<CustomerPaymentDetailPage />} />

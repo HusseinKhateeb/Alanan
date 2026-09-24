@@ -11,20 +11,25 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService auth;
     private final RefreshSessions refreshSessions;
+    private final JwtDecoder jwtDecoder;
     private final boolean secureCookie;
-    public AuthController(AuthService auth, RefreshSessions refreshSessions, @Value("${app.auth.refresh-cookie-secure:false}") boolean secureCookie) {
-        this.auth = auth; this.refreshSessions = refreshSessions; this.secureCookie = secureCookie;
+    public AuthController(AuthService auth, RefreshSessions refreshSessions, JwtDecoder jwtDecoder, @Value("${app.auth.refresh-cookie-secure:false}") boolean secureCookie) {
+        this.auth = auth; this.refreshSessions = refreshSessions; this.jwtDecoder = jwtDecoder; this.secureCookie = secureCookie;
     }
     public record Login(@NotBlank @Size(max = 100) String username, @NotBlank @Size(max = 72) String password) {
         @Override public String toString() { return "Login[REDACTED]"; }
     }
     public record Language(@NotBlank @Pattern(regexp = "ar|en") String language) {}
+    public record PasswordChange(@NotBlank String currentPassword, @NotBlank String newPassword) {
+        @Override public String toString() { return "PasswordChange[REDACTED]"; }
+    }
     @PostMapping("/login")
     TokenService.Token login(@Valid @RequestBody Login request, HttpServletRequest servlet, HttpServletResponse response) {
         var issued = auth.login(request.username(), request.password(), servlet.getRemoteAddr());
@@ -47,6 +52,13 @@ public class AuthController {
         auth.logout(user.id());
         response.addHeader(HttpHeaders.SET_COOKIE, cookie("", 0));
     }
+    @PostMapping("/logout-current")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void logoutCurrent(@AuthenticationPrincipal AuthUser user, @RequestHeader("Authorization") String authorization, HttpServletResponse response) {
+        var jwt = jwtDecoder.decode(authorization.substring(7));
+        refreshSessions.revokeCurrent(java.util.UUID.fromString(jwt.getClaimAsString("sid")), user.id());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie("", 0));
+    }
     private String cookie(String token, long maxAge) {
         return ResponseCookie.from("alanan_refresh", token).httpOnly(true).secure(secureCookie)
             .sameSite("Strict").path("/api/auth").maxAge(maxAge).build().toString();
@@ -55,5 +67,10 @@ public class AuthController {
     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     void language(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody Language request) {
         auth.language(user.id(), request.language());
+    }
+    @PutMapping("/password")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void password(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody PasswordChange request) {
+        auth.changePassword(user.id(), request.currentPassword(), request.newPassword());
     }
 }

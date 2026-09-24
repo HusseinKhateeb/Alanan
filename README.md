@@ -11,6 +11,8 @@ Accounting and business management for Al Anan Roastery. Authentication, master 
 
 ## Frontend preview
 
+To use the app on a phone while the backend stays on this laptop, see [Laptop and mobile access](docs/deployment/laptop-mobile.md). The phone and laptop join the same Tailscale network; the app is served over one private HTTPS address.
+
 Install Node 22.12+ (22 LTS recommended), then:
 
 ```powershell
@@ -130,16 +132,22 @@ These forms preserve drafts and exact submitted requests for manual retry. They 
 
 Only `.env.example` templates belong in Git. All `VITE_*` values are public. Frontend API calls use `VITE_API_BASE_URL` (default `/api`). Health uses the same-origin `/actuator/health` path. The Vite dev proxy forwards both to port 8080. Use same-origin frontend/API routing in production; cross-origin authentication is not configured.
 
-Production uses explicit database environment values and the `prod` Spring profile. Secrets must be injected by the deployment environment. Local Compose credentials must not be reused in production. A manual PostgreSQL backup export script is available in `scripts/backup/`; scheduled offsite backups and guarded restore are not yet implemented. The linked Neon project had a six-hour point-in-time history window when checked on 2026-09-23; an isolated restore branch was tested without touching production. This is not a durable backup plan. See [implementation status](docs/implementation-status.md).
+Production uses explicit database environment values and the `prod` Spring profile. Secrets must be injected by the deployment environment. Local Compose credentials must not be reused in production. The laptop deployment now uses local PostgreSQL 18; its files are in `D:\Alanan\Alanan System\The Database`, outside this Git repository. Keep regular backups on another device or offsite, because a disk failure would affect both the app and local database. See [implementation status](docs/implementation-status.md).
 
 Admins can open **Backups** under workspace settings. **Create and download backup** uses the backend's `pg_dump` to make a PostgreSQL custom-format archive and a matching `.dump.sha256` file. **Upload a backup** accepts a `.dump` (up to 512 MB), optionally compares a supplied SHA-256 checksum, checks archive readability and required tables, and stages the file without changing the live database. The page lists staged files with their checksums and allows downloading the archive and matching checksum separately, or removing the staged file. Keep both downloaded files together with their original names and run `scripts/backup/Test-Restore.ps1 -Archive <path-to-dump>` to test a restore in a disposable database before relying on the backup. Set `BACKUP_STAGING_DIRECTORY` to a private persistent folder; the default is `./backups/staged` relative to the backend process. `pg_dump` and `pg_restore` must be on the backend's PATH, or set `PG_DUMP_COMMAND` and `PG_RESTORE_COMMAND`. Keep a downloaded copy off this computer. The app does not replace the current database from the browser.
+
+Each saved backup also has **Test restore**, which runs a disposable PostgreSQL 18 restore and records when it passed. For recovery into a separate empty database, follow [backup recovery](docs/deployment/backup-recovery.md). The current live database is never overwritten by the Backups page.
 
 CI builds/tests both applications and lints the frontend. No commits or deployments are automatically made by local setup.
 
 If backend port 8080 is occupied, set `SERVER_PORT=8081` in the root `.env`. The development helper and Vite proxy both use it. Restart both processes after changing this value; health then uses `http://localhost:8081/actuator/health`.
 
-## Local backend with Neon PostgreSQL
+## Laptop deployment with local PostgreSQL
+
+Start Docker Desktop, then start the `alanan-local-postgres18` container if it is stopped: `docker start alanan-local-postgres18`. From this repository, run `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\Start-Anywhere.ps1`. The ignored root `.env` connects the backend to `127.0.0.1:15433/alanan`. Its database credentials and the prior Neon credentials in `.env.neon` must stay private. The live PostgreSQL files are in the sibling `The Database` folder, so Git cannot push them; `.gitignore` also excludes that folder if it is ever placed inside this repository. See [laptop and mobile deployment](docs/deployment/laptop-mobile.md).
+
+## Optional Neon connection
 
 Set `DB_URL` in the ignored root `.env` to the **direct** Neon JDBC URL (hostname without `-pooler`) with `sslmode=require&channelBinding=require`, and set `DB_USERNAME`/`DB_PASSWORD` separately. This backend needs persistent database sessions for its schema setting; Neon's transaction pooler can lose that setting between queries. The development startup helper automatically substitutes the direct Neon host when the saved URL uses `-pooler`, without editing `.env`. Keep `DB_HOST`, `DB_PORT` and `DB_NAME` consistent with the external database. The startup helper loads these settings and skips local Docker PostgreSQL when an external URL is configured. The backend and frontend still run locally; no Neon application deployment is required.
 
-Run `scripts/dev/Start-Development.ps1` normally. If the ignored root `.env` enables admin bootstrap, startup creates the named account when absent and leaves it unchanged on later runs. Startup applies Flyway migrations to the configured Neon database. The JDBC URL must not include credentials; keep them in the separate ignored variables and never in frontend configuration. Changing databases does not transfer existing local records.
+If reconnecting to Neon later, review the ignored `.env.neon` first and make a fresh local backup before changing `.env`. The JDBC URL must not include credentials; keep them in the separate ignored variables and never in frontend configuration. Changing database URLs does not transfer new records made after the switch.

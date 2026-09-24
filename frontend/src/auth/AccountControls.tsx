@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from './AuthProvider'
 import { ApiError } from '../api/client'
 
 export function AccountControls() {
   const { t, i18n } = useTranslation()
-  const { user, offline, logout, changeLanguage } = useAuth()
+  const { user, changeLanguage } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function run(action: () => Promise<void>) {
@@ -18,8 +19,7 @@ export function AccountControls() {
       <button disabled={busy} lang="ar" aria-pressed={i18n.language === 'ar'} onClick={() => void run(() => changeLanguage('ar'))}>العربية</button>
       <button disabled={busy} lang="en" aria-pressed={i18n.language === 'en'} onClick={() => void run(() => changeLanguage('en'))}>English</button>
     </div>
-    {user && <><span className="account-name">{user.displayName}</span>
-      <button disabled={busy || offline} onClick={() => void run(logout)}>{t('auth.signOut')}</button></>}
+    {user && <Link className="account-link" to="/account">{user.displayName}</Link>}
     {error && <span role="alert" className="error">{t(`errors.${error}`, { defaultValue: t('errors.SERVER_ERROR') })}</span>}
   </div>
 }

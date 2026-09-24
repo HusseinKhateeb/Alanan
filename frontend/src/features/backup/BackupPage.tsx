@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { api, ApiError, downloadBackup } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 
-interface Archive { id: string; original_name: string; source: 'EXPORT' | 'UPLOAD'; size_bytes: number; sha256: string; created_at: string }
+interface Archive { id: string; original_name: string; source: 'EXPORT' | 'UPLOAD'; size_bytes: number; sha256: string; created_at: string; restore_tested_at: string | null }
+interface RestoreResult { purchases: number; sales: number }
 export function BackupPage() {
   const { user, offline } = useAuth()
   const { t } = useTranslation()
@@ -15,6 +16,7 @@ export function BackupPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [message, setMessage] = useState('')
+  const [recoveryId, setRecoveryId] = useState<string | null>(null)
   const allowed = !!user?.roles.includes('ADMIN') && !offline
   const query = useQuery({ queryKey: ['backups', user?.id], enabled: allowed, retry: false,
     queryFn: () => api<Archive[]>('/backups') })
@@ -68,6 +70,16 @@ export function BackupPage() {
     catch (failure) { setError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
     finally { setBusy(false) }
   }
+  async function testRestore(id: string) {
+    if (busy) return
+    setBusy(true); setError(null); setMessage('')
+    try {
+      const result = await api<RestoreResult>(`/backups/${id}/restore-test`, { method: 'POST', signal: AbortSignal.timeout(600_000) })
+      await client.invalidateQueries({ queryKey: ['backups'] })
+      setMessage(t('backup.restoreTestPassed', { purchases: result.purchases, sales: result.sales }))
+    } catch (failure) { setError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
+    finally { setBusy(false) }
+  }
   return <main><Link to="/">{t('home')}</Link><h1>{t('backup.title')}</h1>
     <p>{t('backup.help')}</p>
     <section className="workspace-section"><h2>{t('backup.create')}</h2>
@@ -91,8 +103,12 @@ export function BackupPage() {
       <div className="reference-list">{query.data?.map(archive => <article key={archive.id}><div>
         <strong>{archive.original_name}</strong><span>{t('backup.' + archive.source)} · {new Date(archive.created_at).toLocaleString()} · {(archive.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
         <small>SHA-256: {archive.sha256}</small>
+        {archive.restore_tested_at && <small>{t('backup.lastRestoreTest', { date: new Date(archive.restore_tested_at).toLocaleString() })}</small>}
         <button disabled={busy} onClick={() => void download(archive.id)}>{t('backup.download')}</button>
         <button disabled={busy} onClick={() => void downloadChecksum(archive.id)}>{t('backup.checksum')}</button>
+        <button disabled={busy} onClick={() => void testRestore(archive.id)}>{t('backup.testRestore')}</button>
+        {archive.restore_tested_at && <button disabled={busy} onClick={() => setRecoveryId(recoveryId === archive.id ? null : archive.id)}>{t('backup.liveRestoreSteps')}</button>}
+        {recoveryId === archive.id && <p>{t('backup.liveRestoreHelp')}</p>}
         <button className="danger-button" disabled={busy} onClick={() => void remove(archive.id)}>{t('backup.remove')}</button>
       </div></article>)}</div>
     </section>

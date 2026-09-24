@@ -19,6 +19,7 @@ interface AuthContextValue {
   expired: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   changeLanguage: (language: 'ar' | 'en') => Promise<void>
 }
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -145,7 +146,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
   async function logout() {
     // Only report logout after the server has revoked the tokens.
-    await api<void>('/auth/logout', { method: 'POST' })
+    await api<void>('/auth/logout-current', { method: 'POST' })
+    generation.current++
+    setAccessToken(null)
+    setSession(null)
+    setOfflineUser(null)
+    clearOfflineProfile()
+    setExpired(false)
+    queryClient.clear()
+  }
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await api<void>('/auth/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) })
     generation.current++
     setAccessToken(null)
     setSession(null)
@@ -166,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await i18n.changeLanguage(language)
   }
-  return <AuthContext.Provider value={{ user: session?.user ?? offlineUser, offline: !!(session || offlineUser) && (backendUnavailable || !session), expired, login, logout, changeLanguage }}>
+  return <AuthContext.Provider value={{ user: session?.user ?? offlineUser, offline: !!(session || offlineUser) && (backendUnavailable || !session), expired, login, logout, changePassword, changeLanguage }}>
     {restoring ? <main role="status">Loading session…</main> : children}
   </AuthContext.Provider>
 }

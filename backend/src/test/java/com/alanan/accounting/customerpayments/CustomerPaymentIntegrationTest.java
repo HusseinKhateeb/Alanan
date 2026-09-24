@@ -35,7 +35,7 @@ class CustomerPaymentIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired AdminBootstrap bootstrap;
     @Autowired IdentityRepository identities;
-    @Autowired TokenService tokens;
+    @Autowired AuthService auth;
     UUID customer,product,owner;
     String token;
     @BeforeEach void setup() {
@@ -43,7 +43,7 @@ class CustomerPaymentIntegrationTest {
         jdbc.update("DELETE FROM customers WHERE NOT is_walk_in");
         bootstrap.run(new DefaultApplicationArguments());
         owner=identities.credentials("owner").orElseThrow().id();
-        token=tokens.issue(identities.activeUser(owner,0).orElseThrow(),0).accessToken();
+        token=auth.login("owner", PASSWORD, UUID.randomUUID().toString()).access().accessToken();
         customer=UUID.randomUUID();product=UUID.randomUUID();
         jdbc.update("INSERT INTO customers(id,name) VALUES (?,'Customer')",customer);
         jdbc.update("INSERT INTO products(id,code,name,category,tracking_type,default_selling_price) VALUES (?,'S','Spice','SPICE','WEIGHT',45)",product);

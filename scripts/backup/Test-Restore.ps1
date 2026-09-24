@@ -1,19 +1,26 @@
 param(
     [Parameter(Mandatory = $true)][string]$Archive,
+    [string]$ExpectedSha256,
     [string]$Docker = 'docker',
-    [string]$Image = 'postgres:17.9-alpine'
+    [string]$Image = 'postgres:18.6-alpine'
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { throw 'Archive not found.' }
 $source = (Resolve-Path -LiteralPath $Archive).ProviderPath
 $checksumPath = "$source.sha256"
-if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) { throw 'Matching .sha256 file not found.' }
-$expectedLine = (Get-Content -LiteralPath $checksumPath -TotalCount 1)
-$expected = '^([a-fA-F0-9]{64})  ' + [regex]::Escape([IO.Path]::GetFileName($source)) + '$'
-if ($expectedLine -notmatch $expected) { throw 'Checksum file is invalid or names another archive.' }
+if ($ExpectedSha256) {
+    if ($ExpectedSha256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 is invalid.' }
+    $expectedHash = $ExpectedSha256
+} else {
+    if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) { throw 'Matching .sha256 file not found.' }
+    $expectedLine = (Get-Content -LiteralPath $checksumPath -TotalCount 1)
+    $expected = '^([a-fA-F0-9]{64})  ' + [regex]::Escape([IO.Path]::GetFileName($source)) + '$'
+    if ($expectedLine -notmatch $expected) { throw 'Checksum file is invalid or names another archive.' }
+    $expectedHash = $Matches[1]
+}
 $actualHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
-if ($actualHash -ne $Matches[1]) { throw 'Archive SHA-256 does not match. Restore aborted.' }
+if ($actualHash -ne $expectedHash) { throw 'Archive SHA-256 does not match. Restore aborted.' }
 $name = 'alanan-restore-' + [Guid]::NewGuid().ToString('N').Substring(0, 12)
 $testPassword = [Guid]::NewGuid().ToString('N')
 $created = $false

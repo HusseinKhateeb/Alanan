@@ -1,6 +1,7 @@
 package com.alanan.accounting.common.security;
 
 import com.alanan.accounting.auth.IdentityRepository;
+import com.alanan.accounting.auth.RefreshSessions;
 import com.alanan.accounting.common.exception.ApiErrors;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.util.Base64;
@@ -24,7 +25,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfiguration {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, IdentityRepository identities, ApiErrors errors) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, IdentityRepository identities, RefreshSessions sessions, ApiErrors errors) throws Exception {
         return http
             // Access tokens are only accepted through Authorization headers; refresh cookies work only at /api/auth/refresh.
             .csrf(csrf -> csrf.disable())
@@ -34,11 +35,11 @@ public class SecurityConfiguration {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/refresh").permitAll()
-                .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/language", "/api/users", "/api/users/options").authenticated()
+                .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/logout-current", "/api/auth/language", "/api/auth/password", "/api/users", "/api/users/options").authenticated()
                 .requestMatchers("/api/purchases", "/api/purchases/*", "/api/purchases/*/cancel", "/api/purchases/*/pdf", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements", "/api/inventory/adjustments").authenticated()
                 .requestMatchers("/api/expenses", "/api/expenses/*", "/api/expenses/*/cancel", "/api/waste", "/api/waste/*").authenticated()
                 .requestMatchers("/api/audit").authenticated()
-                .requestMatchers("/api/backups", "/api/backups/*", "/api/backups/*/download", "/api/backups/*/checksum", "/api/backups/exports").authenticated()
+                .requestMatchers("/api/backups", "/api/backups/*", "/api/backups/*/download", "/api/backups/*/checksum", "/api/backups/*/restore-test", "/api/backups/exports").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.DELETE,"/api/admin/deletions/*/*").authenticated()
                 .requestMatchers("/api/dashboard").authenticated()
                 .requestMatchers("/api/reports/*", "/api/reports/*/csv").authenticated()
@@ -59,7 +60,12 @@ public class SecurityConfiguration {
                     try {
                         Number version = token.getClaim("ver");
                         if (version == null) throw new InvalidBearerTokenException("Invalid token");
-                        var user = identities.activeUser(UUID.fromString(token.getSubject()), version.longValue())
+                        UUID userId = UUID.fromString(token.getSubject());
+                        String sessionClaim = token.getClaimAsString("sid");
+                        if (sessionClaim == null) throw new InvalidBearerTokenException("Invalid session");
+                        UUID sessionId = UUID.fromString(sessionClaim);
+                        if (!sessions.active(sessionId, userId)) throw new InvalidBearerTokenException("Invalid session");
+                        var user = identities.activeUser(userId, version.longValue())
                             .orElseThrow(() -> new InvalidBearerTokenException("Invalid token"));
                         var authorities = new java.util.ArrayList<SimpleGrantedAuthority>();
                         user.permissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));

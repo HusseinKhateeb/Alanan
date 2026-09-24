@@ -31,14 +31,14 @@ class BackupIntegrationTest {
         p.add("app.backup.staging-directory",STAGED::toString);
     }
     @Autowired MockMvc mvc; @Autowired JdbcTemplate jdbc; @Autowired ObjectMapper json;
-    @Autowired AdminBootstrap bootstrap; @Autowired IdentityRepository identities; @Autowired TokenService tokens;
+    @Autowired AdminBootstrap bootstrap; @Autowired IdentityRepository identities; @Autowired AuthService auth;
     @Autowired BackupService backups;
     String token; UUID owner;
     @BeforeEach void setup() {
         jdbc.execute("TRUNCATE users CASCADE");
         bootstrap.run(new DefaultApplicationArguments());
         owner=identities.credentials("owner").orElseThrow().id();
-        token=tokens.issue(identities.activeUser(owner,0).orElseThrow(),0).accessToken();
+        token=auth.login("owner", PASSWORD, UUID.randomUUID().toString()).access().accessToken();
     }
     @AfterAll static void cleanup() throws Exception {
         if(Files.isDirectory(STAGED)) try(var files=Files.list(STAGED)) {
@@ -76,8 +76,11 @@ class BackupIntegrationTest {
             .andExpect(status().isCreated()).andExpect(jsonPath("source").value("UPLOAD"));
         mvc.perform(get("/api/backups/"+exportId+"/checksum").header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(content().string(created.path("sha256").asText()+"  alanan-"+exportId+".dump\n"));
+        mvc.perform(post("/api/backups/"+exportId+"/restore-test").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("purchases").value(0)).andExpect(jsonPath("sales").value(0));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM backup_archives",Integer.class)).isEqualTo(2);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM backup_events",Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM backup_events",Integer.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM backup_events WHERE archive_id=? AND action='RESTORE_TEST'",Integer.class,exportId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users",Integer.class)).isEqualTo(1);
         mvc.perform(get("/api/backups").header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));

@@ -8,6 +8,7 @@
 *.tsbuildinfo
 **/target/
 .tools/
+The Database/
 .idea/
 .vscode/
 .DS_Store

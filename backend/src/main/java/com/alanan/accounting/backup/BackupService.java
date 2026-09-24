@@ -43,7 +43,9 @@ public class BackupService {
 
     @PreAuthorize("hasRole('ADMIN')")
     public List<Map<String,Object>> list() {
-        return jdbc.queryForList("SELECT id,original_name,source,size_bytes,sha256,created_at FROM backup_archives ORDER BY created_at DESC,id DESC LIMIT 50")
+        return jdbc.queryForList("SELECT a.id,a.original_name,a.source,a.size_bytes,a.sha256,a.created_at,"+
+            "(SELECT max(e.created_at) FROM backup_events e WHERE e.archive_id=a.id AND e.action='RESTORE_TEST') AS restore_tested_at "+
+            "FROM backup_archives a ORDER BY a.created_at DESC,a.id DESC LIMIT 50")
             .stream().map(row -> {
                 var result=new LinkedHashMap<>(row);
                 result.put("id",row.get("id").toString());
@@ -116,6 +118,41 @@ public class BackupService {
         String hash=(String)rows.getFirst().get("sha256");
         audit(id,"CHECKSUM_DOWNLOAD",actor,Map.of("sha256",hash));
         return hash+"  alanan-"+id+".dump\n";
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<String,Object> testRestore(UUID id, AuthUser actor) {
+        var rows=jdbc.queryForList("SELECT sha256,size_bytes FROM backup_archives WHERE id=?",id);
+        Path archive=path(id,".dump");
+        if(rows.isEmpty() || !Files.isRegularFile(archive)) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
+        String expected=(String)rows.getFirst().get("sha256");
+        Path script=Path.of("scripts/backup/Test-Restore.ps1").toAbsolutePath().normalize();
+        if(!Files.isRegularFile(script)) script=Path.of("../scripts/backup/Test-Restore.ps1").toAbsolutePath().normalize();
+        if(!Files.isRegularFile(script)) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"BACKUP_RESTORE_TEST_UNAVAILABLE");
+        Path output=null;
+        try {
+            if(!sha256(archive).equalsIgnoreCase(expected)) throw new ApiException(HttpStatus.BAD_REQUEST,"BACKUP_CHECKSUM_INVALID");
+            output=Files.createTempFile(root,"restore-test-",".log");
+            ProcessBuilder builder=new ProcessBuilder("powershell.exe","-NoProfile","-ExecutionPolicy","Bypass",
+                "-File",script.toString(),"-Archive",archive.toString(),"-ExpectedSha256",expected);
+            builder.redirectErrorStream(true).redirectOutput(output.toFile());
+            Process process=builder.start();
+            if(!process.waitFor(10,TimeUnit.MINUTES)) {
+                process.destroyForcibly(); process.waitFor();
+                throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"BACKUP_RESTORE_TEST_FAILED");
+            }
+            if(process.exitValue()!=0) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"BACKUP_RESTORE_TEST_FAILED");
+            String result=Files.readString(output);
+            var match=Pattern.compile("Disposable restore passed: purchases=(\\d+), sales=(\\d+)").matcher(result);
+            if(!match.find()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"BACKUP_RESTORE_TEST_FAILED");
+            audit(id,"RESTORE_TEST",actor,Map.of("sha256",expected,"sizeBytes",rows.getFirst().get("size_bytes")));
+            return Map.of("purchases",Long.parseLong(match.group(1)),"sales",Long.parseLong(match.group(2)));
+        } catch(IOException ex) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"BACKUP_RESTORE_TEST_UNAVAILABLE");
+        } catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"BACKUP_RESTORE_TEST_FAILED");
+        } finally { if(output!=null) deleteQuietly(output); }
     }
 
     @PreAuthorize("hasRole('ADMIN')")

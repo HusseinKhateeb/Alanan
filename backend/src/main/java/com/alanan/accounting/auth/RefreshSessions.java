@@ -31,9 +31,10 @@ public class RefreshSessions {
     @Transactional
     public Issued create(IdentityRepository.Credentials account, AuthUser user) {
         String raw = randomToken();
+        UUID sessionId = UUID.randomUUID();
         jdbc.update("INSERT INTO refresh_sessions(id, user_id, token_hash, token_version, expires_at) VALUES (?, ?, ?, ?, ?)",
-            UUID.randomUUID(), user.id(), hash(raw), account.tokenVersion(), java.sql.Timestamp.from(Instant.now().plus(LIFETIME)));
-        return new Issued(tokens.issue(user, account.tokenVersion()), raw);
+            sessionId, user.id(), hash(raw), account.tokenVersion(), java.sql.Timestamp.from(Instant.now().plus(LIFETIME)));
+        return new Issued(tokens.issue(user, account.tokenVersion(), sessionId), raw);
     }
 
     @Transactional
@@ -49,7 +50,18 @@ public class RefreshSessions {
         String next = randomToken();
         jdbc.update("UPDATE refresh_sessions SET token_hash = ?, expires_at = ? WHERE id = ?",
             hash(next), java.sql.Timestamp.from(Instant.now().plus(LIFETIME)), session.id());
-        return new Issued(tokens.issue(user, session.version()), next);
+        return new Issued(tokens.issue(user, session.version(), session.id()), next);
+    }
+
+    public boolean active(UUID sessionId, UUID userId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM refresh_sessions WHERE id = ? AND user_id = ? AND expires_at > CURRENT_TIMESTAMP)",
+            Boolean.class, sessionId, userId));
+    }
+
+    @Transactional
+    public void revokeCurrent(UUID sessionId, UUID userId) {
+        jdbc.update("DELETE FROM refresh_sessions WHERE id = ? AND user_id = ?", sessionId, userId);
     }
 
     @Transactional

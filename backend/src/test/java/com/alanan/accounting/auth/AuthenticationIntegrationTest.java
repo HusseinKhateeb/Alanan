@@ -50,6 +50,7 @@ class AuthenticationIntegrationTest {
     @Autowired PasswordEncoder passwords;
     @Autowired AdminBootstrap bootstrap;
     @Autowired JwtEncoder encoder;
+    @Autowired JwtDecoder decoder;
 
     @BeforeEach
     void reset() {
@@ -63,6 +64,37 @@ class AuthenticationIntegrationTest {
             .andReturn().getResponse().getContentAsString());
     }
     String ownerToken() throws Exception { return login("OWNER", PASSWORD).get("accessToken").asText(); }
+    @Test void signOutCurrentRevokesOnlyThatSession() throws Exception {
+        MockHttpServletResponse first = mvc.perform(post("/api/auth/login").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("username", "owner", "password", PASSWORD))))
+            .andExpect(status().isOk()).andReturn().getResponse();
+        String firstToken = json.readTree(first.getContentAsString()).get("accessToken").asText();
+        String firstCookie = first.getHeader("Set-Cookie").split(";", 2)[0].split("=", 2)[1];
+        String otherToken = ownerToken();
+        UUID firstSessionId = UUID.fromString(decoder.decode(firstToken).getClaimAsString("sid"));
+        mvc.perform(post("/api/auth/logout-current").header("Authorization", "Bearer " + firstToken))
+            .andExpect(status().isNoContent()).andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_sessions WHERE id = ?", Integer.class, firstSessionId)).isZero();
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + firstToken)).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("alanan_refresh", firstCookie))
+            .header("X-Alanan-Session", "refresh")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + otherToken)).andExpect(status().isOk());
+    }
+    @Test void changingPasswordRevokesExistingTokensAndRequiresTheCurrentPassword() throws Exception {
+        String token = ownerToken();
+        String nextPassword = "new-strong-password-" + UUID.randomUUID();
+        mvc.perform(put("/api/auth/password").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("currentPassword", "wrong", "newPassword", nextPassword))))
+            .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/auth/password").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("currentPassword", PASSWORD, "newPassword", nextPassword))))
+            .andExpect(status().isNoContent());
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token)).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("username", "owner", "password", PASSWORD))))
+            .andExpect(status().isUnauthorized());
+        login("owner", nextPassword);
+    }
     @Test void refreshCookieRestoresLoginRotatesAndLogoutRevokesIt() throws Exception {
         MockHttpServletResponse login = mvc.perform(post("/api/auth/login")
             .contentType("application/json").content(json.writeValueAsString(Map.of("username", "owner", "password", PASSWORD))))

@@ -47,6 +47,11 @@ public class BackupController {
             .header(HttpHeaders.CACHE_CONTROL,"no-store").body(service.checksum(id,actor));
     }
 
+    @PostMapping("/{id}/restore-test")
+    public Map<String,Object> testRestore(@PathVariable UUID id,@AuthenticationPrincipal AuthUser actor) {
+        return service.testRestore(id,actor);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remove(@PathVariable UUID id,@AuthenticationPrincipal AuthUser actor) { service.remove(id,actor); }
