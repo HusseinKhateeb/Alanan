@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthProvider'
-import { ApiError } from '../../api/client'
+import { api, ApiError } from '../../api/client'
 import { localDrafts } from '../../db/masterDataDrafts'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import { SaleLineEditor } from './SaleLineEditor'
@@ -26,12 +26,14 @@ export function NewSalePage() {
 function SaleEditor({ userId }: { userId: string }) {
   const { t } = useTranslation()
   const { user, offline } = useAuth()
+  const canViewSales = !!user?.permissions.includes('SALES_VIEW')
   const client = useQueryClient()
   const [draft, setDraft] = useState<SaleDraft | null>(null)
   const [queued, setQueued] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [storageFailed, setStorageFailed] = useState(false)
+  const [deletedReceipt, setDeletedReceipt] = useState(false)
   const [customerForm, setCustomerForm] = useState(false)
   useFormUpdateGuard(!!draft && !draft.receipt)
   useEffect(() => {
@@ -39,14 +41,24 @@ function SaleEditor({ userId }: { userId: string }) {
     async function load() {
       try {
         const stored = await localDrafts.saleDrafts.get(userId)
-        const value = stored?.draft ?? newSale()
+        let value = stored?.draft ?? newSale()
+        if (value.receipt && !offline && canViewSales) {
+          try { await api('/sales/' + value.receipt.id) }
+          catch (failure) {
+            if (failure instanceof ApiError && failure.status === 404) {
+              value = newSale()
+              await saveSaleDraft(userId, value)
+              if (current) setDeletedReceipt(true)
+            }
+          }
+        }
         if (!stored) await saveSaleDraft(userId, value)
         if (current) { setDraft(value); setQueued(!!(await localDrafts.outbox.get(userId + ':' + value.requestId))) }
       } catch { if (current) setStorageFailed(true) }
     }
     void load()
     return () => { current = false }
-  }, [userId])
+  }, [userId, offline, canViewSales])
 
   useEffect(() => {
     if (!draft?.submitted) return
@@ -96,6 +108,7 @@ function SaleEditor({ userId }: { userId: string }) {
     <Link to="/">{t('home')}</Link><h1>{t('sales.new')}</h1>
     {offline && <p role="status">{t('offline.workspaceHelp')}</p>}
     {storageFailed && <p role="alert">{t('purchase.storageError')}</p>}
+    {deletedReceipt && <p role="status">{t('sales.deletedReceipt')}</p>}
     {!draft && !storageFailed && <p role="status">{t('sales.loadingDraft')}</p>}
     {draft?.receipt ? <section className="purchase-receipt" role="status">
       <h2>{t('sales.saved', { number: draft.receipt.invoiceNumber })}</h2>

@@ -73,6 +73,17 @@ test('walk-in sale requires full payment before saving', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Pay full total' }))
   expect(screen.getByRole('button', { name: 'Queue sale' })).toBeEnabled()
 })
+test('clears a saved receipt whose invoice was hard-deleted', async () => {
+  const draft = await prepared()
+  await saveSaleDraft('buyer', { ...draft, receipt: { id: 'deleted-sale', invoiceNumber: 'SAL-2026-000006', total: '29.00', paid: '29.00', outstanding: '0.00', status: 'PAID', negativeStock: false } })
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url === '/api/sales/deleted-sale'
+    ? { ok: false, status: 404, json: async () => ({ errorCode: 'NOT_FOUND' }) }
+    : reference(url)))
+  mount()
+  expect(await screen.findByText('That saved invoice no longer exists. A new sale is ready.')).toBeInTheDocument()
+  expect(screen.queryByText('Sale SAL-2026-000006 saved successfully.')).not.toBeInTheDocument()
+  await waitFor(async () => expect((await localDrafts.saleDrafts.get('buyer'))?.draft.receipt).toBeUndefined())
+})
 
 test('quick customer creation selects and persists the customer without losing the sale draft', async () => {
   const draft = await prepared()

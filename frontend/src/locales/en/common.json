@@ -315,6 +315,7 @@
     "all": "All sales",
     "search": "Search invoice number, customer, or date",
     "saved": "Sale {{number}} saved successfully.",
+    "deletedReceipt": "That saved invoice no longer exists. A new sale is ready.",
     "another": "New sales invoice",
     "save": "Save sale",
     "retry": "Retry the same sale",
