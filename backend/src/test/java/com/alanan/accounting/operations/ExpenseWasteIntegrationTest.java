@@ -50,6 +50,42 @@ class ExpenseWasteIntegrationTest {
     JsonNode save(String path,Map<String,Object> body) throws Exception {
         var result=submit(path,body);assertThat(result.getStatus()).as(result.getContentAsString()).isEqualTo(201);return json.readTree(result.getContentAsString());
     }
+    @Test void hardDeletionOfExpenseAndWasteKeepsAuditAndRestoresStock() throws Exception {
+        var expense=save("expenses",expense());
+        var waste=save("waste",waste("2"));
+        for(var entry:List.of(Map.entry("expenses",expense),Map.entry("waste",waste))) {
+            mvc.perform(delete("/api/admin/deletions/"+entry.getKey()+"/"+entry.getValue().get("id").asText())
+                .header("Authorization","Bearer "+token).contentType("application/json")
+                .content("{\"reason\":\"Entered in error\"}")) .andExpect(status().isNoContent());
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM expenses",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM waste_records",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,product)).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM hard_deletion_audit",Integer.class)).isEqualTo(2);
+    }
+    @Test void expenseRecorderCanQuickCreateTypeWithoutSettingsPermission() throws Exception {
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,FALSE FROM permissions WHERE code='SETTINGS_MANAGE'",owner);
+        mvc.perform(post("/api/expense-categories/quick").header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"name\":\"Delivery\"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("name").value("Delivery"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM expense_categories WHERE name='Delivery'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM master_data_audit WHERE entity_type='expense-categories'",Integer.class)).isEqualTo(1);
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,FALSE FROM permissions WHERE code='EXPENSES_CREATE'",owner);
+        mvc.perform(post("/api/expense-categories/quick").header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"name\":\"Travel\"}")) .andExpect(status().isForbidden());
+    }
+    @Test void wasteRecorderCanQuickCreateProductWithoutSettingsPermission() throws Exception {
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,FALSE FROM permissions WHERE code='SETTINGS_MANAGE'",owner);
+        String body="{\"name\":\"Old honey\",\"code\":\"OLD-H\",\"category\":\"HONEY\",\"trackingType\":\"PIECE\",\"price\":\"25.00\"}";
+        mvc.perform(post("/api/products/quick-waste").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(body))
+            .andExpect(status().isCreated()).andExpect(jsonPath("tracking_type").value("PIECE"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM products WHERE code='OLD-H'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM master_data_audit WHERE entity_type='products'",Integer.class)).isEqualTo(1);
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,FALSE FROM permissions WHERE code='INVENTORY_ADJUST'",owner);
+        mvc.perform(post("/api/products/quick-waste").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(body.replace("OLD-H","OLD-H2"))) .andExpect(status().isForbidden());
+    }
     @Test void expensePreservesSnapshotsAndFiltersWithoutStockChanges() throws Exception {
         var record=save("expenses",expense());
         assertThat(record.get("amount").asText()).isEqualTo("125.50");assertThat(record.get("payment_method_name").asText()).isEqualTo("Cash");
@@ -59,6 +95,22 @@ class ExpenseWasteIntegrationTest {
         mvc.perform(get("/api/expenses").param("from","2026-01-02").header("Authorization","Bearer "+token)).andExpect(jsonPath("items.length()").value(0));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM expense_audit",Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements",Integer.class)).isZero();
+    }
+    @Test void csvExportIncludesPeriodRowsAndEscapesSpreadsheetFormulas() throws Exception {
+        jdbc.update("UPDATE expense_categories SET name='=2+2' WHERE id=?",category);
+        save("expenses",expense());
+        String path="/api/reports/expenses/csv?from=2026-01-01&to=2026-01-31";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        var response=mvc.perform(get(path).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(header().string("Content-Type",org.hamcrest.Matchers.containsString("text/csv")))
+            .andReturn().getResponse();
+        String csv=response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).contains("expense_date,category_name,payment_method_name,amount,notes", "\"'=2+2\"", "\"125.50\"");
+        mvc.perform(get("/api/reports/profit/csv?from=2026-01-02&to=2026-01-01").header("Authorization","Bearer "+token))
+            .andExpect(status().isBadRequest());
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='EMPLOYEE'",owner);
+        mvc.perform(get(path).header("Authorization","Bearer "+token)).andExpect(status().isForbidden());
     }
     @Test void cancelledExpenseLeavesHistoryAndDisappearsFromDashboardTotals() throws Exception {
         var body=expense();

@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthProvider'
 import type { SaleDetail } from './types'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import type { ReferenceRecord } from '../masterdata/catalogs'
+import { HardDeleteControl } from '../cancellations/HardDeleteControl'
 export function SaleDetailPage() {
   const { id } = useParams()
   const { t } = useTranslation()
@@ -67,8 +68,11 @@ export function SaleDetailPage() {
           {cancelError && <p role="alert" className="error">{t('errors.' + cancelError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
           <button className="danger-button" disabled={cancelling || !reason.trim() || (Number(sale.paid) > 0 && !refundConfirmed)}>{t('sales.cancelInvoice')}</button>
         </form></details>}
+      {Number(sale.outstanding) > 0 && sale.customer_id && user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE') &&
+        <p><Link to={'/customer-payments/new?customerId=' + sale.customer_id}>{t('customerPayments.new')}</Link></p>}
       <h2>{t('customerPayments.history')}</h2>
       <ul>{sale.payments.map(payment => <li key={payment.id}><Link to={'/customer-payments/' + payment.id}>{payment.payment_date} · {payment.amount} ₪ · {payment.payment_method_name}{!payment.active ? ' · ' + t('cancellation.cancelled') : ''}</Link></li>)}</ul>
       <p>{sale.notes}</p></>}
+    {sale && <HardDeleteControl kind="sales" id={sale.id} returnTo="/sales" />}
   </main>
 }

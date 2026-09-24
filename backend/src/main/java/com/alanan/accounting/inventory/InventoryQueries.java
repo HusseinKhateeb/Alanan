@@ -20,7 +20,7 @@ public class InventoryQueries {
     public Object movements(UUID productId,int page,AuthUser user) {
         PagedRows.validPage(page);
         String costs=user.permissions().contains("COST_VIEW") ? ",m.unit_cost" : "";
-        return PagedRows.page(jdbc.queryForList("SELECT m.id,m.movement_type,m.quantity_change,m.created_at,m.reference_id,p.invoice_number"+costs+
+        return PagedRows.page(jdbc.queryForList("SELECT m.id,m.movement_type,m.reference_type,m.quantity_change,m.notes,m.created_at,m.reference_id,p.invoice_number"+costs+
             " FROM inventory_movements m LEFT JOIN purchase_invoices p ON p.id=m.reference_id AND m.reference_type='PURCHASE' WHERE m.product_id=? ORDER BY m.created_at DESC,m.id LIMIT 51 OFFSET ?",productId,(long)page*50));
     }
 }

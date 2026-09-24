@@ -135,6 +135,16 @@ test('one-tap product selection keeps a new walk-in sale paid in full while quan
   expect(screen.getByLabelText(/Paid now/)).toHaveValue('10.00')
 })
 
+test('Enter on a completed sale line adds the next line', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Spice' }))
+  fireEvent.change(screen.getByLabelText('kg'), { target: { value: '2' } })
+  fireEvent.keyDown(screen.getByLabelText('kg'), { key: 'Enter' })
+  expect(screen.getAllByText('Item 2').length).toBeGreaterThan(0)
+  await waitFor(async () => expect((await localDrafts.saleDrafts.get('buyer'))?.draft.items).toHaveLength(2))
+})
+
 test('offline form loads cached references even when network queries would be paused', async () => {
   for (const kind of ['products', 'customers', 'container-types', 'payment-methods']) {
     await localDrafts.references.put({ key: 'buyer:' + kind, userId: 'buyer', kind, records: kind === 'products' ? [product] : [], updatedAt: Date.now() })

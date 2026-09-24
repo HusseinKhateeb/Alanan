@@ -39,6 +39,12 @@ public class PurchaseQueries {
         result.put("payments",jdbc.queryForList("SELECT p.id,p.payment_date,p.payment_method_name,a.amount,a.active FROM supplier_payments p JOIN supplier_payment_allocations a ON a.payment_id=p.id WHERE a.purchase_invoice_id=? ORDER BY p.created_at,p.id",id).stream().map(PagedRows::external).toList());
         var cancellations=jdbc.queryForList("SELECT reason,refund_received,refund_method_name,created_at FROM purchase_cancellations WHERE purchase_invoice_id=?",id);
         result.put("cancellation",cancellations.isEmpty() ? null : PagedRows.external(cancellations.getFirst()));
+        result.put("correction_allowed", !"CANCELLED".equals(rows.getFirst().get("status")) &&
+            !Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM purchase_items i JOIN inventory_movements m ON m.product_id=i.product_id
+                    WHERE i.purchase_invoice_id=? AND m.reference_id<>? AND
+                    m.created_at >= (SELECT min(created_at) FROM inventory_movements WHERE reference_type='PURCHASE' AND reference_id=?))
+                """,Boolean.class,id,id,id)));
         return result;
     }
 }

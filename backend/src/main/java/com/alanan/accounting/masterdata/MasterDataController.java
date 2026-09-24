@@ -17,6 +17,10 @@ public class MasterDataController {
                 @RequestParam(required=false) String phone, @AuthenticationPrincipal AuthUser user) {
         return service.list(Catalog.from(catalog), q, page, activeOnly, phone, user);
     }
+    @GetMapping("/{id}")
+    Map<String,Object> detail(@PathVariable String catalog, @PathVariable String id, @AuthenticationPrincipal AuthUser user) {
+        return service.detail(Catalog.from(catalog), id, user);
+    }
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     Map<String,Object> create(@PathVariable String catalog, @Valid @RequestBody MasterDataInput input,

@@ -26,19 +26,21 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, IdentityRepository identities, ApiErrors errors) throws Exception {
         return http
-            // Tokens are only accepted through Authorization headers, never cookies or query parameters.
+            // Access tokens are only accepted through Authorization headers; refresh cookies work only at /api/auth/refresh.
             .csrf(csrf -> csrf.disable())
             .requestCache(cache -> cache.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
-                .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/language", "/api/users").authenticated()
-                .requestMatchers("/api/purchases", "/api/purchases/*", "/api/purchases/*/cancel", "/api/purchases/*/pdf", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/refresh").permitAll()
+                .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/language", "/api/users", "/api/users/options").authenticated()
+                .requestMatchers("/api/purchases", "/api/purchases/*", "/api/purchases/*/cancel", "/api/purchases/*/pdf", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements", "/api/inventory/adjustments").authenticated()
                 .requestMatchers("/api/expenses", "/api/expenses/*", "/api/expenses/*/cancel", "/api/waste", "/api/waste/*").authenticated()
                 .requestMatchers("/api/audit").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE,"/api/admin/deletions/*/*").authenticated()
                 .requestMatchers("/api/dashboard").authenticated()
-                .requestMatchers("/api/reports/*").authenticated()
+                .requestMatchers("/api/reports/*", "/api/reports/*/csv").authenticated()
                 .requestMatchers("/api/customer-payments", "/api/customer-payments/*", "/api/customer-payments/*/cancel").authenticated()
                 .requestMatchers("/api/supplier-payments", "/api/supplier-payments/*", "/api/supplier-payments/*/cancel").authenticated()
                 .requestMatchers("/api/sales", "/api/sales/*", "/api/sales/*/cancel", "/api/sales/*/pdf", "/api/customer-balances").authenticated()
@@ -58,8 +60,10 @@ public class SecurityConfiguration {
                         if (version == null) throw new InvalidBearerTokenException("Invalid token");
                         var user = identities.activeUser(UUID.fromString(token.getSubject()), version.longValue())
                             .orElseThrow(() -> new InvalidBearerTokenException("Invalid token"));
-                        return new UsernamePasswordAuthenticationToken(user, null,
-                            user.permissions().stream().map(SimpleGrantedAuthority::new).toList());
+                        var authorities = new java.util.ArrayList<SimpleGrantedAuthority>();
+                        user.permissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+                        user.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+                        return new UsernamePasswordAuthenticationToken(user, null, authorities);
                     } catch (IllegalArgumentException | ClassCastException ex) {
                         throw new InvalidBearerTokenException("Invalid token");
                     }

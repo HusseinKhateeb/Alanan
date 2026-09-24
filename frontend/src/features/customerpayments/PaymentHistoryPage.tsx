@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthProvider'
 import type { Page } from '../purchases/types'
 import type { PaymentDetail, PaymentSummary } from './types'
 import { CancelControl } from '../cancellations/CancelControl'
+import { HardDeleteControl } from '../cancellations/HardDeleteControl'
 
 export function PaymentHistoryPage() {
   const [params] = useSearchParams()
@@ -51,5 +52,6 @@ export function PaymentDetailPage() {
       <ul>{payment.allocations.map(item => <li key={item.invoice_id}><Link to={'/sales/' + item.invoice_id}>{item.invoice_number}</Link>: {item.amount} ₪</li>)}</ul></>}
     {payment && user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE') && user.permissions.includes('AUDIT_VIEW') && <CancelControl endpoint={'/customer-payments/' + payment.id} kind="customerPayment" cancelled={payment.cancellation?.reason} />}
     {payment?.cancellation && !user?.permissions.includes('AUDIT_VIEW') && <p>{t('cancellation.cancelled')}</p>}
+    {payment && <HardDeleteControl kind="customer-payments" id={payment.id} returnTo="/customer-payments" />}
   </main>
 }

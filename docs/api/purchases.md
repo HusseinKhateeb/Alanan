@@ -7,6 +7,7 @@
 | POST | /api/purchases | PURCHASES_CREATE |
 | GET | /api/purchases?page=0&supplierId=UUID | PURCHASES_VIEW |
 | GET | /api/purchases/{id} | PURCHASES_VIEW |
+| PUT | /api/purchases/{id} | PURCHASES_CREATE and AUDIT_VIEW; guarded correction |
 | GET | /api/supplier-balances?page=0 | PURCHASES_VIEW |
 | GET | /api/inventory?page=0 | PURCHASES_VIEW, PURCHASES_CREATE, INVENTORY_ADJUST or COST_VIEW |
 | GET | /api/inventory/movements?productId=UUID&page=0 | Same as inventory |
@@ -27,7 +28,11 @@ The request contains:
 
 No total, invoice number, creator or WAC supplied by the client is authoritative. The backend calculates all financial effects.
 
-The receipt contains id, invoiceNumber, total, paid, outstanding and status (OPEN, PARTIAL or PAID). Invoice details preserve supplier/product names and tracking units used at creation and include payments allocated to that invoice. There is no editing, cancellation or PDF endpoint yet.
+The receipt contains id, invoiceNumber, total, paid, outstanding and status (OPEN, PARTIAL or PAID). Invoice details preserve supplier/product names and tracking units used at creation and include payments allocated to that invoice. Detail also reports `version` and `correction_allowed`.
+
+## Correcting a purchase
+
+`PUT /api/purchases/{id}` accepts `version`, `invoiceDate`, optional `supplierReference` and `notes`, a required `reason`, and ordered `items` with positive `quantity` and `unitCost`. The product lines, supplier, payments and invoice number cannot change. The edit button appears only when no later movement exists for its products; the server checks again with locks before changing anything. An edit is rejected if the invoice was cancelled, its version changed, current stock/cost diverged from its saved snapshot, later movements exist, or paid amount would exceed the new total. Quantities, weighted cost, invoice total/status and correction inventory movements are changed in one transaction with an audit snapshot. A later movement requires a future full revaluation workflow; historical costs are never silently rewritten.
 
 ## Transaction and retry guarantees
 

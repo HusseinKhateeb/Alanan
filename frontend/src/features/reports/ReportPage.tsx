@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, ApiError } from '../../api/client'
+import { api, ApiError, downloadCsv } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 
 type Kind = 'sales' | 'purchases' | 'expenses' | 'suppliers' | 'profit'
@@ -50,6 +50,8 @@ function ReportView({ kind }: { kind: Kind }) {
   const [period, setPeriod] = useState({ from, to })
   const [page, setPage] = useState(0)
   const [dateError, setDateError] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<ApiError | null>(null)
   const allowed = permitted(kind, user?.permissions ?? [])
   const report = useQuery({ queryKey: ['report', user?.id, kind, period.from, period.to, page], enabled: allowed, retry: false,
     queryFn: () => api<Report>(`/reports/${kind}?from=${period.from}&to=${period.to}&page=${page}`) })
@@ -57,6 +59,13 @@ function ReportView({ kind }: { kind: Kind }) {
     event.preventDefault()
     if (!from || !to || from > to) { setDateError(true); return }
     setDateError(false); setPage(0); setPeriod({ from, to })
+  }
+  async function exportReport() {
+    if(exporting) return
+    setExporting(true); setExportError(null)
+    try { await downloadCsv(`/reports/${kind}/csv?from=${period.from}&to=${period.to}`, `alanan-${kind}-${period.from}-${period.to}.csv`) }
+    catch (failure) { setExportError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
+    finally { setExporting(false) }
   }
   if (!allowed) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
   const data = report.data
@@ -69,6 +78,8 @@ function ReportView({ kind }: { kind: Kind }) {
       <label>{t('reports.to')}<input type="date" required value={to} onChange={event => setTo(event.target.value)} /></label>
       <button className="primary-button">{t('reports.apply')}</button>
     </form>
+    <button type="button" disabled={exporting || report.isPending} onClick={() => void exportReport()}>{t('reports.exportCsv')}</button>
+    {exportError && <p role="alert">{t('errors.' + exportError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {dateError && <p role="alert" className="error">{t('errors.INVALID_DATE_RANGE')}</p>}
     {report.isPending && <p role="status">{t('master.loading')}</p>}
     {report.error && <p role="alert">{t('errors.' + (report.error instanceof ApiError ? report.error.code : 'SERVER_ERROR'))}</p>}

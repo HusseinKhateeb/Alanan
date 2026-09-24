@@ -57,6 +57,43 @@ class SaleIntegrationTest {
         mvc.perform(post("/api/sales").header("Authorization","Bearer "+token).contentType("application/json").content(json.writeValueAsString(body)))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value(code));
     }
+    @Test void adminHardDeletionRestoresStockAndPreservesDeletionAudit() throws Exception {
+        var sale=create(request("0",List.of(item(spice,"BY_WEIGHT","2","45"))));
+        String path="/api/admin/deletions/sales/"+sale.get("id").asText();
+        mvc.perform(delete(path).contentType("application/json").content("{\"reason\":\"Wrong invoice\"}"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(delete(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Wrong invoice\"}")).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM hard_deletion_audit WHERE entity_type='SALE'",Integer.class)).isEqualTo(1);
+    }
+    @Test void paidSaleMustBeRefundedBeforeHardDeletion() throws Exception {
+        var sale=create(request("45",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        mvc.perform(delete("/api/admin/deletions/sales/"+sale.get("id").asText()).header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"reason\":\"Wrong invoice\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("DELETE_REFUND_REQUIRED"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("9");
+    }
+    @Test void employeeCannotHardDeleteAnInvoice() throws Exception {
+        var sale=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        UUID owner=identities.credentials("owner").orElseThrow().id();
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?",owner);
+        jdbc.update("INSERT INTO user_roles SELECT ?,id FROM roles WHERE name='EMPLOYEE'",owner);
+        mvc.perform(delete("/api/admin/deletions/sales/"+sale.get("id").asText())
+            .header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Wrong\"}")) .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isEqualTo(1);
+    }
+    @Test void adminCanHardDeleteDespiteInvoiceEditPermissionOverride() throws Exception {
+        var sale=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        UUID owner=identities.credentials("owner").orElseThrow().id();
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,FALSE FROM permissions WHERE code='SALES_EDIT'",owner);
+        mvc.perform(delete("/api/admin/deletions/sales/"+sale.get("id").asText())
+            .header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Wrong\"}")) .andExpect(status().isNoContent());
+    }
     @Test void invoicePdfRequiresAuthenticationAndReturnsPdf() throws Exception {
         var result=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
         var path="/api/sales/"+result.get("id").asText()+"/pdf";
@@ -79,6 +116,17 @@ class SaleIntegrationTest {
             .andExpect(jsonPath("items[0].item_name").value("Spice")).andExpect(jsonPath("items[0].cost_at_sale").value("20.000000"))
             .andExpect(jsonPath("items[0].cost_total").value("25.00")).andExpect(jsonPath("items[2].product_id").isEmpty()).andExpect(jsonPath("items[2].cost_total").isEmpty());
         mvc.perform(get("/api/customer-balances").header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("items[0].outstanding").value("146.25"));
+    }
+    @Test void saleSearchMatchesInvoiceCustomerAndDateWithoutTreatingInputAsSql() throws Exception {
+        var created=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        String number=created.get("invoiceNumber").asText();
+        for(String query:List.of(number.toLowerCase(Locale.ROOT),"customer","2026-01-01"))
+            mvc.perform(get("/api/sales").param("q",query).header("Authorization","Bearer "+token))
+                .andExpect(status().isOk()).andExpect(jsonPath("items[0].invoice_number").value(number));
+        mvc.perform(get("/api/sales").param("q","' OR true --").header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items.length()").value(0));
+        mvc.perform(get("/api/sales").param("q","x".repeat(101)).header("Authorization","Bearer "+token))
+            .andExpect(status().isBadRequest());
     }
     @Test void byAmountRoundsQuantityButPreservesRequestedRevenue() throws Exception {
         create(request("20",List.of(item(spice,"BY_AMOUNT","20","45"))));

@@ -107,6 +107,22 @@ class CustomerPaymentIntegrationTest {
             .andExpect(status().isConflict());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_payment_audit WHERE action='CANCEL'",Integer.class)).isEqualTo(1);
     }
+    @Test void paymentHardDeletionRequiresRefundAndUnlinksItsInvoice() throws Exception {
+        UUID invoice=sale("2026-01-01","100","0");
+        var payment=save(request("100","MANUAL",List.of(allocation(invoice,"100"))));
+        String deletion="/api/admin/deletions/customer-payments/"+payment.get("id").asText();
+        mvc.perform(delete(deletion).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Duplicate\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("DELETE_REFUND_REQUIRED"));
+        mvc.perform(post("/api/customer-payments/"+payment.get("id").asText()+"/cancel")
+            .header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Refunded\",\"refundConfirmed\":true}")) .andExpect(status().isOk());
+        mvc.perform(delete(deletion).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Duplicate\"}")) .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_payments",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT paid FROM sales WHERE id=?",java.math.BigDecimal.class,invoice)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM hard_deletion_audit WHERE entity_type='CUSTOMER_PAYMENT'",Integer.class)).isEqualTo(1);
+    }
     @Test void paymentCannotBeReversedAfterItsSaleWasCancelled() throws Exception {
         UUID invoice=sale("2026-01-01","100","0");
         var payment=save(request("100","MANUAL",List.of(allocation(invoice,"100"))));

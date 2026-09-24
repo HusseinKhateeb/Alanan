@@ -37,10 +37,12 @@ public class ApiExceptionHandler {
     ResponseEntity<?> integrity(org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
         Throwable cause = ex.getMostSpecificCause();
         boolean duplicate = cause instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState());
-        String code = duplicate ? (request.getRequestURI().startsWith("/api/customers") ? "CUSTOMER_PHONE_EXISTS" : "DUPLICATE_RECORD") : "VALIDATION_FAILED";
+        String code = duplicate ? (request.getRequestURI().startsWith("/api/customers") ? "CUSTOMER_PHONE_EXISTS"
+            : request.getRequestURI().equals("/api/users") ? "USERNAME_EXISTS" : "DUPLICATE_RECORD") : "VALIDATION_FAILED";
         int status = duplicate ? 409 : 400;
         return ResponseEntity.status(status).body(errors.body(request, status, code,
-            "CUSTOMER_PHONE_EXISTS".equals(code) ? Map.of("phone", "errors.CUSTOMER_PHONE_EXISTS") : Map.of()));
+            "CUSTOMER_PHONE_EXISTS".equals(code) ? Map.of("phone", "errors.CUSTOMER_PHONE_EXISTS")
+            : "USERNAME_EXISTS".equals(code) ? Map.of("username", "errors.USERNAME_EXISTS") : Map.of()));
     }
     @ExceptionHandler(Exception.class)
     ResponseEntity<?> unexpected(Exception ex, HttpServletRequest request) {

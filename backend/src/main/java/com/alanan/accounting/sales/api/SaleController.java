@@ -23,7 +23,8 @@ public class SaleController {
     public SaleController(SaleService service,SaleQueries queries,SaleCancellationService cancellations,InvoicePdfService pdf) { this.service=service; this.queries=queries; this.cancellations=cancellations; this.pdf=pdf; }
     @PostMapping("/sales") @ResponseStatus(HttpStatus.CREATED)
     public SaleService.Receipt create(@Valid @RequestBody SaleRequest request,@AuthenticationPrincipal AuthUser user) { return service.create(request,user); }
-    @GetMapping("/sales") public PagedRows.Page list(@RequestParam(defaultValue="0") int page,@RequestParam(required=false) UUID customerId) { return queries.list(page,customerId); }
+    @GetMapping("/sales") public PagedRows.Page list(@RequestParam(defaultValue="0") int page,@RequestParam(required=false) UUID customerId,
+        @RequestParam(defaultValue="") String q) { return queries.list(page,customerId,q); }
     @GetMapping("/sales/{id}") public Map<String,Object> detail(@PathVariable UUID id,@AuthenticationPrincipal AuthUser user) { return queries.detail(id,user); }
     @GetMapping(value="/sales/{id}/pdf",produces=MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> pdf(@PathVariable UUID id,@AuthenticationPrincipal AuthUser user) throws java.io.IOException {

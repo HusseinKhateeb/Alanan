@@ -23,6 +23,15 @@ public class PurchaseCancellationService {
     @Transactional
     @PreAuthorize("hasAuthority('PURCHASES_CREATE') and hasAuthority('AUDIT_VIEW')")
     public Map<String,Object> cancel(UUID id,CancelPurchaseRequest request,AuthUser user) {
+        return cancelInternal(id,request,user);
+    }
+
+    // Only the admin-gated HardDeletionService calls this inside its transaction.
+    public Map<String,Object> reverseForHardDeletion(UUID id,CancelPurchaseRequest request,AuthUser user) {
+        return cancelInternal(id,request,user);
+    }
+
+    private Map<String,Object> cancelInternal(UUID id,CancelPurchaseRequest request,AuthUser user) {
         var reference=jdbc.queryForList("SELECT supplier_id FROM purchase_invoices WHERE id=?",id);
         if(reference.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
         UUID supplierId=(UUID)reference.getFirst().get("supplier_id");
@@ -87,7 +96,7 @@ public class PurchaseCancellationService {
     }
     private Map<UUID,JsonNode> creationEffects(UUID id) {
         try {
-            String raw=jdbc.queryForObject("SELECT new_values::text FROM purchase_audit WHERE purchase_invoice_id=? AND action='CREATE' ORDER BY id LIMIT 1",String.class,id);
+            String raw=jdbc.queryForObject("SELECT new_values::text FROM purchase_audit WHERE purchase_invoice_id=? AND action IN ('CREATE','EDIT') ORDER BY id DESC LIMIT 1",String.class,id);
             var effects=new HashMap<UUID,JsonNode>();
             for(JsonNode effect:json.readTree(raw).path("inventoryEffects")) effects.put(UUID.fromString(effect.path("productId").asText()),effect);
             return effects;

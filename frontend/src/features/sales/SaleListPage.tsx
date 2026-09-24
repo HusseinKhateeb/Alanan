@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
+import { useDebounced } from '../masterdata/useDebounced'
 import type { Page } from '../purchases/types'
 import type { SaleSummary } from './types'
 
@@ -17,12 +18,16 @@ function SaleList({ customer, allowed }: { customer: string | null; allowed: boo
   const { t } = useTranslation()
   const { user } = useAuth()
   const [page, setPage] = useState(0)
-  const result = useQuery({ queryKey: ['sales', user!.id, customer, page],
-    queryFn: () => api<Page<SaleSummary>>('/sales?page=' + page + (customer ? '&customerId=' + encodeURIComponent(customer) : '')), enabled: allowed, retry: false })
+  const [search, setSearch] = useState('')
+  const query = useDebounced(search)
+  const result = useQuery({ queryKey: ['sales', user!.id, customer, query, page],
+    queryFn: () => api<Page<SaleSummary>>('/sales?page=' + page + (customer ? '&customerId=' + encodeURIComponent(customer) : '') + '&q=' + encodeURIComponent(query)), enabled: allowed, retry: false })
   if (!allowed) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
   return <main><Link to="/">{t('home')}</Link><h1>{t('sales.list')}</h1>
     {user?.permissions.includes('SALES_CREATE') && <Link to="/sales/new">{t('sales.new')}</Link>}
     {customer && <p><Link to="/sales">{t('sales.all')}</Link></p>}
+    <div className="catalog-filters"><label htmlFor="sale-search">{t('sales.search')}</label><input id="sale-search" type="search" maxLength={100} value={search}
+      onChange={event => { setSearch(event.target.value); setPage(0) }} /></div>
     {result.isPending && <p role="status">{t('master.loading')}</p>}
     {result.error && <p role="alert">{t('errors.' + (result.error instanceof ApiError ? result.error.code : 'SERVER_ERROR'))}</p>}
     {result.data?.items.length === 0 && <p>{t('master.empty')}</p>}

@@ -79,15 +79,25 @@ export function App() {
   return <AuthProvider><AuthenticatedApp /></AuthProvider>
 }
 
-function AuthenticatedApp() {
+function OfflineWorkspace() {
   const { t } = useTranslation()
   const { user } = useAuth()
+  return <main><h1>{t('offline.workspaceTitle')}</h1>
+    <p role="status">{t('offline.workspaceHelp')}</p>
+    {user?.permissions.includes('SALES_CREATE') && <Link className="primary-button" to="/sales/new">{t('sales.new')}</Link>}
+  </main>
+}
+
+function AuthenticatedApp() {
+  const { t } = useTranslation()
+  const { user, offline } = useAuth()
   return <>
     <header className="header"><Link className="brand" to="/">
       <img src="/icon.svg" alt="" width="44" height="44" />
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
     </Link><AccountControls /></header>
-    {user ? <Suspense fallback={<main role="status">{t('master.loading')}</main>}><Routes>
+    {user && offline ? <Routes><Route path="/sales/new" element={<NewSalePage />} /><Route path="*" element={<OfflineWorkspace />} /></Routes>
+    : user ? <Suspense fallback={<main role="status">{t('master.loading')}</main>}><Routes>
       <Route path="/reports/:kind" element={<ReportPage />} />
       <Route path="/audit" element={<AuditPage />} />
       <Route path="/expenses" element={<OperationHistoryPage kind="expenses" />} /><Route path="/expenses/new" element={<OperationEntryPage kind="expenses" />} />

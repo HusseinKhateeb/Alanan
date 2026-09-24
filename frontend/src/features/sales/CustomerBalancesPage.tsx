@@ -22,6 +22,7 @@ export function CustomerBalancesPage() {
       <span>{t('purchase.paid')}: {customer.paid} ₪</span><span>{t('purchase.outstanding')}: {customer.outstanding} ₪</span>
       <Link to={'/sales?customerId=' + customer.id}>{t('sales.list')}</Link>
       <Link to={'/customer-payments?customerId=' + customer.id}>{t('customerPayments.history')}</Link>
+      {user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE') && <Link to={'/customer-payments/new?customerId=' + customer.id}>{t('customerPayments.new')}</Link>}
     </div></article>)}</div>
     <div className="pagination"><button disabled={page === 0 || query.isFetching} onClick={() => setPage(page - 1)}>{t('auth.previous')}</button>
       <button disabled={!query.data?.hasMore || query.isFetching} onClick={() => setPage(page + 1)}>{t('auth.next')}</button></div>

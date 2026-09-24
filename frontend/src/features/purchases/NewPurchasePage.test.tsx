@@ -27,6 +27,16 @@ async function prepared() {
   await savePurchaseDraft('buyer', draft)
   return draft
 }
+test('searches and selects a supplier in one purchase field', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount()
+  const field = await screen.findByRole('combobox', { name: 'Search Suppliers' })
+  fireEvent.focus(field)
+  fireEvent.change(field, { target: { value: 'Supp' } })
+  fireEvent.click(await screen.findByRole('option', { name: 'Supplier' }))
+  expect(field).toHaveValue('Supplier')
+  await waitFor(async () => expect((await localDrafts.purchaseDrafts.get('buyer'))?.draft.supplier?.id).toBe('supplier'))
+})
 test('persists immutable submitted data and retries the same key after remount', async () => {
   const draft = await prepared()
   const requests: string[] = []

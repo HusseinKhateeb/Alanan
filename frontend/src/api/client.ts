@@ -17,7 +17,30 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return response.json() as Promise<T>
 }
 
+let refreshInFlight: Promise<unknown> | null = null
+export function refreshSession<T>(): Promise<T> {
+  if (refreshInFlight) return refreshInFlight as Promise<T>
+  const pending = api<T>('/auth/refresh', { method: 'POST' })
+  refreshInFlight = pending
+  const clear = () => { if (refreshInFlight === pending) refreshInFlight = null }
+  void pending.then(clear, clear)
+  return pending
+}
+
 export async function downloadPdf(path: string, filename: string): Promise<void> {
+  const response = await request(path)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export async function downloadCsv(path: string, filename: string): Promise<void> {
   const response = await request(path)
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)
@@ -34,16 +57,23 @@ async function request(path: string, options: RequestInit = {}): Promise<Respons
   const requestToken = accessToken
   const headers = new Headers(options.headers)
   if (options.body) headers.set('Content-Type', 'application/json')
-  if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`)
+  if (requestToken && path !== '/auth/refresh' && path !== '/auth/login') headers.set('Authorization', `Bearer ${requestToken}`)
+  const sessionEndpoint = path === '/auth/login' || path === '/auth/refresh' || path === '/auth/logout'
+  if (path === '/auth/refresh') headers.set('X-Alanan-Session', 'refresh')
   let response: Response
   try {
     response = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}${path}`, {
-      ...options, headers, cache: 'no-store', credentials: 'omit', signal: options.signal ?? AbortSignal.timeout(15_000),
+      ...options, headers, cache: 'no-store', credentials: sessionEndpoint ? 'same-origin' : 'omit', signal: options.signal ?? AbortSignal.timeout(15_000),
     })
-  } catch { throw new ApiError('NETWORK_ERROR') }
+  } catch {
+    window.dispatchEvent(new Event('alanan:backend-unavailable'))
+    throw new ApiError('NETWORK_ERROR')
+  }
+  if (response.ok && path !== '/auth/refresh') window.dispatchEvent(new Event('alanan:backend-available'))
+  else if ([502, 503, 504].includes(response.status)) window.dispatchEvent(new Event('alanan:backend-unavailable'))
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { errorCode?: string; fieldErrors?: Record<string, string> }
-    if (response.status === 401 && path !== '/auth/login' && accessToken === requestToken) {
+    if (response.status === 401 && path !== '/auth/login' && path !== '/auth/refresh' && accessToken === requestToken) {
       setAccessToken(null)
       window.dispatchEvent(new Event('alanan:unauthenticated'))
     }

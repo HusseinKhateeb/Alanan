@@ -10,15 +10,15 @@ import type { ReferenceRecord, ReferencePage } from '../masterdata/catalogs'
 interface Props { kind: 'products' | 'suppliers' | 'payment-methods' | 'customers' | 'container-types' | 'expense-categories'; id: string; value: ReferenceRecord | null; disabled: boolean; activeOnly?: boolean; excludeWalkIn?: boolean; quickPick?: boolean; autoFocus?: boolean; combined?: boolean; onChange: (value: ReferenceRecord | null) => void }
 export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true, excludeWalkIn = false, quickPick = false, autoFocus = false, combined = false, onChange }: Props) {
   const { t } = useTranslation()
-  const { user } = useAuth()
+  const { user, offline } = useAuth()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const query = useDebounced(search)
-  const data = useQuery({ queryKey: ['purchase-reference', user!.id, kind, query, page, activeOnly], networkMode: 'always',
+  const data = useQuery({ queryKey: ['purchase-reference', user!.id, kind, query, page, activeOnly, offline], networkMode: 'always',
     queryFn: async (): Promise<ReferencePage & { cached?: boolean; updatedAt?: number }> => {
-      if (navigator.onLine === false && activeOnly && offlineKinds.includes(kind)) return cachedReferencePage(user!.id, kind, query, page)
+      if ((offline || navigator.onLine === false) && activeOnly && offlineKinds.includes(kind)) return cachedReferencePage(user!.id, kind, query, page)
       try { return await api<ReferencePage>(`/${kind}?activeOnly=${activeOnly}&q=${encodeURIComponent(query)}&page=${page}`) }
       catch (failure) {
         if (activeOnly && offlineKinds.includes(kind) && failure instanceof ApiError && (failure.status === 0 || failure.status >= 500)) return cachedReferencePage(user!.id, kind, query, page)
@@ -33,18 +33,19 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
       if (defaultMethod) onChange(defaultMethod)
     }
   }, [kind, value, disabled, data.data, onChange])
-  if (combined && kind === 'customers') {
+  if (combined && (kind === 'customers' || kind === 'suppliers' || kind === 'expense-categories' || kind === 'products')) {
     const visible = query === search ? options : []
-    const choices = excludeWalkIn || search.trim() ? visible : [null, ...visible]
-    function select(customer: ReferenceRecord | null) {
-      onChange(customer); setSearch(''); setPage(0); setHighlight(0); setOpen(false)
+    const choices: (ReferenceRecord | null)[] = kind === 'customers' && !excludeWalkIn && !search.trim() ? [null, ...visible] : visible
+    function select(record: ReferenceRecord | null) {
+      onChange(record); setSearch(''); setPage(0); setHighlight(0); setOpen(false)
     }
     return <div className="reference-selector customer-combobox">
-      <label htmlFor={id}>{t('purchase.searchReference', { type: t('master.customers') })}</label>
+      <label htmlFor={id}>{t('purchase.searchReference', { type: t('master.' + kind) })}</label>
       <input id={id} type="search" role="combobox" aria-autocomplete="list" aria-expanded={open && !disabled}
         aria-controls={id + '-options'} aria-activedescendant={open && choices[highlight] ? id + '-option-' + highlight : undefined}
         autoComplete="off" maxLength={200} disabled={disabled} autoFocus={autoFocus}
-        placeholder={excludeWalkIn ? t('purchase.choose') : t('master.walkIn')}
+        required={kind !== 'customers' || excludeWalkIn}
+        placeholder={kind === 'customers' && !excludeWalkIn ? t('master.walkIn') : t('purchase.choose')}
         value={open ? search : value?.name ?? ''}
         onFocus={() => { setOpen(true); setSearch(''); setPage(0); setHighlight(0) }}
         onBlur={() => setOpen(false)}
@@ -56,10 +57,10 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
           if (event.key === 'Escape') { event.preventDefault(); setOpen(false); event.currentTarget.blur() }
         }} />
       {open && !disabled && <div id={id + '-options'} role="listbox" className="customer-options">
-        {choices.map((customer, index) => <button type="button" role="option" id={id + '-option-' + index}
-          aria-selected={highlight === index} key={customer?.id ?? 'walk-in'}
-          onMouseDown={event => event.preventDefault()} onClick={() => select(customer)}>
-          <span>{customer?.name ?? t('master.walkIn')}</span>{customer?.phone && <small>{customer.phone}</small>}
+        {choices.map((record, index) => <button type="button" role="option" id={id + '-option-' + index}
+          aria-selected={highlight === index} key={record?.id ?? 'walk-in'}
+          onMouseDown={event => event.preventDefault()} onClick={() => select(record)}>
+          <span>{record?.name ?? t('master.walkIn')}</span>{(record?.phone || record?.code) && <small>{record.phone || record.code}</small>}
         </button>)}
         {!choices.length && !data.isFetching && <p>{t('master.empty')}</p>}
       </div>}
@@ -75,7 +76,13 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
     {data.data?.cached && <p role="status">{t('offline.cached', { date: new Date(data.data.updatedAt!).toLocaleString() })}</p>}
     {showSearch && <><label htmlFor={id + '-search'}>{t('purchase.searchReference', { type: t('master.' + kind) })}</label>
       <input id={id + '-search'} value={search} disabled={disabled} type="search" maxLength={200} autoFocus={autoFocus} autoComplete="off"
-        onChange={event => { setSearch(event.target.value); setPage(0) }} /></>}
+        onChange={event => { setSearch(event.target.value); setPage(0) }}
+        onKeyDown={event => {
+          if (event.key === 'Enter' && query === search && options.length) {
+            event.preventDefault(); onChange(options[0]); setSearch(''); setPage(0)
+          }
+          if (event.key === 'ArrowDown') { event.preventDefault(); document.getElementById(id)?.focus() }
+        }} /></>}
     {quickPick && !disabled && options.length > 0 && <div className="reference-quick-picks" aria-label={t('purchase.searchReference', { type: t('master.' + kind) })}>
       {options.slice(0, 8).map(option => <button type="button" key={option.id} aria-pressed={value?.id === option.id}
         onClick={() => { onChange(option); setSearch(''); setPage(0) }}>{option.name}{option.code && <small>{option.code}</small>}</button>)}

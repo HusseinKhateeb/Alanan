@@ -22,6 +22,15 @@ public class SaleCancellationService {
     @Transactional
     @PreAuthorize("hasAuthority('SALES_EDIT')")
     public Map<String,Object> cancel(UUID id,CancelSaleRequest request,AuthUser user) {
+        return cancelInternal(id,request,user);
+    }
+
+    // Only the admin-gated HardDeletionService calls this inside its transaction.
+    public Map<String,Object> reverseForHardDeletion(UUID id,CancelSaleRequest request,AuthUser user) {
+        return cancelInternal(id,request,user);
+    }
+
+    private Map<String,Object> cancelInternal(UUID id,CancelSaleRequest request,AuthUser user) {
         var reference=jdbc.queryForList("SELECT customer_id FROM sales WHERE id=?",id);
         if(reference.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
         UUID customerId=(UUID)reference.getFirst().get("customer_id");

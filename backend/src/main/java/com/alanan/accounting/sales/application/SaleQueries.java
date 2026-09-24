@@ -16,10 +16,19 @@ public class SaleQueries {
     public SaleQueries(JdbcTemplate jdbc) { this.jdbc=jdbc; }
     private static final String SUMMARY="SELECT id,invoice_number,customer_id,customer_name,invoice_date,total,paid,(CASE WHEN status='CANCELLED' THEN 0 ELSE total-paid END)::numeric(18,2) outstanding,status,negative_stock FROM sales";
     @PreAuthorize("hasAuthority('SALES_VIEW')")
-    public PagedRows.Page list(int page,UUID customerId) {
+    public PagedRows.Page list(int page,UUID customerId,String q) {
         PagedRows.validPage(page);
-        return PagedRows.page(customerId==null ? jdbc.queryForList(SUMMARY+" ORDER BY invoice_date DESC,created_at DESC,id LIMIT 51 OFFSET ?",(long)page*50)
-            : jdbc.queryForList(SUMMARY+" WHERE customer_id=? ORDER BY invoice_date DESC,created_at DESC,id LIMIT 51 OFFSET ?",customerId,(long)page*50));
+        String search=q.strip();
+        if(search.length()>100) throw new ApiException(HttpStatus.BAD_REQUEST,"VALIDATION_FAILED");
+        var sql=new StringBuilder(SUMMARY+" WHERE 1=1");
+        var args=new ArrayList<Object>();
+        if(customerId!=null) { sql.append(" AND customer_id=?"); args.add(customerId); }
+        if(!search.isEmpty()) {
+            sql.append(" AND (position(lower(?) in lower(invoice_number))>0 OR position(lower(?) in lower(customer_name))>0 OR position(? in invoice_date::text)>0)");
+            args.add(search); args.add(search); args.add(search);
+        }
+        sql.append(" ORDER BY invoice_date DESC,created_at DESC,id LIMIT 51 OFFSET ?"); args.add((long)page*50);
+        return PagedRows.page(jdbc.queryForList(sql.toString(),args.toArray()));
     }
     @Transactional(readOnly=true)
     @PreAuthorize("hasAuthority('SALES_VIEW')")

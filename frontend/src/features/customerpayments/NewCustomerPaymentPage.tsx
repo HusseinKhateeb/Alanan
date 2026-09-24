@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthProvider'
@@ -11,14 +11,16 @@ import { InvoiceAllocations } from './InvoiceAllocations'
 import { newPayment, savePaymentDraft, toPaymentRequest } from './drafts'
 import { moneyCents, moneyFromCents } from '../../utils/money'
 import type { PaymentDraft, PaymentReceipt } from './types'
+import type { ReferenceRecord } from '../masterdata/catalogs'
 
 export function NewCustomerPaymentPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
+  const [params] = useSearchParams()
   if (!user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE')) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
-  return <Editor key={user.id} userId={user.id} />
+  return <Editor key={user.id + (params.get('customerId') ?? '')} userId={user.id} customerId={params.get('customerId')} />
 }
-function Editor({ userId }: { userId: string }) {
+function Editor({ userId, customerId }: { userId: string; customerId: string | null }) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const client = useQueryClient()
@@ -26,19 +28,28 @@ function Editor({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [storageFailed, setStorageFailed] = useState(false)
+  const [requestedCustomer, setRequestedCustomer] = useState<ReferenceRecord | null>(null)
+  const [prefillError, setPrefillError] = useState<ApiError | null>(null)
   useFormUpdateGuard(!!draft && !draft.receipt)
   useEffect(() => {
     let current = true
     void (async () => {
       try {
         const stored = await localDrafts.customerPaymentDrafts.get(userId)
-        const value = stored?.draft ?? newPayment()
-        if (!stored) await savePaymentDraft(userId, value)
+        let value = stored?.draft ?? newPayment()
+        if (customerId) {
+          try {
+            const selected = await api<ReferenceRecord>('/customers/' + customerId)
+            if (current) setRequestedCustomer(selected)
+            if (!value.customer && !value.submitted && !value.receipt) value = { ...value, customer: selected }
+          } catch (failure) { if (current) setPrefillError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
+        }
+        if (!stored || value !== stored.draft) await savePaymentDraft(userId, value)
         if (current) setDraft(value)
       } catch { if (current) setStorageFailed(true) }
     })()
     return () => { current = false }
-  }, [userId])
+  }, [userId, customerId])
   function update(next: PaymentDraft) {
     setDraft(next)
     void savePaymentDraft(userId, next).then(() => setStorageFailed(false)).catch(() => setStorageFailed(true))
@@ -71,7 +82,7 @@ function Editor({ userId }: { userId: string }) {
     } finally { setBusy(false) }
   }
   async function startNew() {
-    try { const next = newPayment(); await savePaymentDraft(userId, next); setDraft(next); setError(null); setStorageFailed(false) }
+    try { const next = { ...newPayment(), customer: requestedCustomer }; await savePaymentDraft(userId, next); setDraft(next); setError(null); setStorageFailed(false) }
     catch { setStorageFailed(true) }
   }
   const locked = busy || !!draft?.submitted
@@ -80,6 +91,9 @@ function Editor({ userId }: { userId: string }) {
   const invalid = !draft?.customer || !!draft.customer.is_walk_in || amount === null || amount <= 0n || (draft.mode === 'MANUAL' &&
     (allocated !== amount || !draft.allocations.length || draft.allocations.length > 100 || draft.allocations.some(item => (moneyCents(item.amount) ?? 0n) <= 0n)))
   return <main className="purchase-page"><Link to="/">{t('home')}</Link><h1>{t('customerPayments.new')}</h1>
+    {prefillError && <p role="alert">{t('errors.' + prefillError.code)}</p>}
+    {requestedCustomer && draft?.customer && draft.customer.id !== requestedCustomer.id && !draft.submitted && !draft.receipt &&
+      <p>{t('customerPayments.otherDraftCustomer', { name: draft.customer.name })} <button type="button" onClick={() => update({ ...draft, customer: requestedCustomer, allocations: [] })}>{t('customerPayments.useRequestedCustomer', { name: requestedCustomer.name })}</button></p>}
     {storageFailed && <p role="alert">{t('purchase.storageError')}</p>}
     {!draft && !storageFailed && <p role="status">{t('customerPayments.loadingDraft')}</p>}
     {draft?.receipt ? <section className="purchase-receipt" role="status"><h2>{t('customerPayments.saved')}</h2>
@@ -90,7 +104,7 @@ function Editor({ userId }: { userId: string }) {
     </section> : draft && <><p>{t('customerPayments.draftNotice')}</p>
       {draft.submitted && <p role="status">{t('customerPayments.pendingRetry')}</p>}
       <form onSubmit={submit}><fieldset disabled={locked} className="purchase-header-fields">
-        <ReferenceSelector kind="customers" excludeWalkIn id="payment-customer" value={draft.customer} activeOnly={false} disabled={locked} onChange={customer => update({ ...draft, customer, allocations: [] })} />
+        <ReferenceSelector kind="customers" combined excludeWalkIn id="payment-customer" value={draft.customer} activeOnly={false} disabled={locked} onChange={customer => update({ ...draft, customer, allocations: [] })} />
         <label>{t('customerPayments.date')}<input required type="date" value={draft.paymentDate} onChange={event => update({ ...draft, paymentDate: event.target.value })} /></label>
         <label>{t('customerPayments.amount')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.amount} onChange={event => update({ ...draft, amount: event.target.value })} /></label>
         <ReferenceSelector kind="payment-methods" id="payment-method" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />

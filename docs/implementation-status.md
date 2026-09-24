@@ -15,6 +15,7 @@
 - JWT login, current user, language preference and logout with server-side revocation.
 - Active-account and capability checks against the database on every request.
 - Bilingual login, reauthentication on expiry, memory-only tokens and admin-only paginated user directory.
+- Admin-only account creation with display name, username, password, preferred language, active status, roles and per-user permission overrides; creation is audited without recording passwords.
 - Bounded login throttling, safe error envelopes/request IDs and authentication event records.
 - Local startup helper, API documentation and security architecture decision.
 
@@ -33,6 +34,8 @@
 - Idempotency and stable product locks for safe retry and concurrent saves.
 - Invoice list/details with preserved product/supplier names; derived supplier balances and invoice history.
 - Inventory quantities/movements with WAC/cost capability checks and a physical-stock estimate label.
+- Opening-stock entries for old goods: an authorized user records product, quantity, unit cost, date and reason. The transaction updates stock/WAC and writes an idempotent movement and audit record without creating supplier debt.
+- Admin hard deletion for invoices, payments, expenses, waste and opening-stock adjustments, with stock reversal where applicable and a surviving deletion-audit snapshot. Linked payments and later stock movements block deletion; paid records require the refund/cancellation flow first.
 - User-scoped durable purchase drafts and immutable submitted requests across reconnect/relogin; manual retry after uncertain outcomes.
 
 ## Implemented: supplier payments
@@ -62,7 +65,7 @@
 - Per-user complete reference snapshots and network-failure fallback with cache-age notices.
 - Durable sales outbox, automatic connected-session retry, multi-tab leases and immutable request IDs.
 - Pending/Syncing/Synced/Needs attention panel, rejected-sale correction and preserved drafts.
-- Memory-only sessions; reopen/session expiry requires online sign-in. No offline customer creation or service-worker background submission.
+- Access JWTs remain in memory; same-origin reload restores a seven-day rotating HttpOnly refresh session while online. A seven-day non-secret profile keeps the sale-only workspace available during backend outages, including reopen and token renewal. Queued sales wait for authenticated reconnection. No offline customer creation or service-worker background submission.
 
 ## Implemented: expenses and waste
 
@@ -71,7 +74,7 @@
 - Capability restrictions, hidden cost fields, exact-request retries and durable bilingual forms.
 - Waste history filters by dates/product; product units locked after waste history.
 
-This is not a completed V1 release. Automatic synchronization for non-sales workflows, report exports, PDFs and backups are not implemented. Historical invoice editing remains pending. User creation/editing/password recovery UI remains outside the implemented read-only user directory. See the requirement-by-requirement [v6 specification review](specification-review.md).
+This is not a completed V1 release. Automatic synchronization for non-sales workflows remains open. A daily offsite backup installer and disposable restore drill are available, but no real backup schedule is installed until an offsite destination is configured. Sales and purchase invoice PDFs and bounded full-period report CSV exports are available. Purchase corrections are guarded to invoices without later stock movements; full historical revaluation, user editing/deactivation and password recovery remain pending. See the requirement-by-requirement [v6 specification review](specification-review.md).
 
 ## Implemented: read-only audit history
 
@@ -81,13 +84,22 @@ This is not a completed V1 release. Automatic synchronization for non-sales work
 
 ## Next milestones
 
-1. Remaining foundation: generated OpenAPI and user administration/password recovery workflows.
-2. Invoice integration of master data: inline customer/supplier creation and reference caching for offline entry.
+1. Remaining foundation: generated OpenAPI and user editing/password recovery workflows.
+2. Invoice integration of master data: offline customer creation and dependency-aware synchronization; online quick customer creation, admin inline supplier creation and reference caching are available.
 3. Inventory valuation extensions: negative-stock reconciliation and safe historical invoice edits.
 4. Offline extensions: customer creation and dependency-aware synchronization, other accounting operations, and real-device acceptance.
-5. Safe editing/reversals, sales/expenses/profit reports, Arabic PDFs, backup/restore and production QA.
+5. Safe historical editing/revaluation, scheduled offsite backups, guarded restore and production QA.
 
 Database integration checks use isolated PostgreSQL Testcontainers. PWA installation and offline behavior require browser/device acceptance tests before release.
+
+## Quick recording improvements — 2026-09-23
+
+- Sale product search accepts Enter to choose the first visible result; selecting a product focuses quantity/amount, and Enter on a valid line adds and focuses the next item. Existing default prices remain editable.
+- Customer payments now share the one-field customer search and can start from a customer balance or unpaid sale with the customer preselected. An existing draft for a different customer is preserved until the user chooses to switch.
+- Sales history searches invoice number, customer name or date. Reports export their selected period to a UTF-8 CSV (up to 10,000 rows), with the same access rules and spreadsheet-formula protection.
+- A manual pg_dump script checks archive readability and records a SHA-256 checksum; it passed against a disposable PostgreSQL container. It does not schedule or store backups offsite and does not prove a full restore.
+- Backend verification passed 85 tests before the final focused customer lookup and CSV permission tests; those focused tests also passed. Frontend 49 tests, lint and production build passed. The configured Neon database was not used in these checks.
+- Historical invoice editing/revaluation, queued non-sale writes, guarded restore and mobile/PWA acceptance remain open.
 
 ## Bootstrap verification — 2026-09-22
 
@@ -198,3 +210,16 @@ Database integration checks use isolated PostgreSQL Testcontainers. PWA installa
 - Supplier purchased/paid figures use the selected period; current debt is explicitly a live all-time balance. Report views enforce the underlying sales, purchases, expenses and cost permissions.
 - No new migration or external service is required. CSV/PDF export, historical as-of supplier balances and full cost reconciliation remain open work. The report suite used isolated PostgreSQL Testcontainers databases; the configured Neon database was not accessed.
 - Backend Maven verify passed 77 tests, including report totals, cancellation effects, date validation and permission checks. Frontend lint, 42 tests and the production PWA build passed. Browser/device acceptance remains pending.
+
+## Invoice PDFs, quick customers and browser acceptance - 2026-09-23
+
+- Authenticated sales and purchase invoice detail pages can download branded Arabic/English PDFs using saved invoice line names and amounts. Cancelled invoices are marked. PDFs are raster pages, so text is not selectable or searchable.
+- Sales users can create a named customer with optional phone directly in New Sale and select it immediately. The sale customer field combines search and selection by name or phone, including cached offline references. Customer creation itself requires a connection.
+- Backend PDF and customer authorization tests passed using isolated PostgreSQL. Frontend lint, 45 tests and production build passed after the customer and layout work. The shared-footer change was reverted at the user's request.
+- A headless Chrome acceptance run against a disposable local PostgreSQL container completed login, quick customer creation, single-field customer search, partial sale, PDF download with a `%PDF-` header, customer payment and a resulting paid invoice with zero outstanding. This was one desktop browser path, not mobile/PWA installation or accessibility acceptance. The configured Neon production branch was not used for the browser run.
+
+## Neon recovery check - 2026-09-23
+
+- Project `soft-bread-93552394` reports `history_retention_seconds=21600` (six hours). This is a short recovery window, not a durable backup policy.
+- A separate `recovery-check-20260923` branch was created without compute, restored from the production branch to a timestamp within that window, reached `ready`, and a temporary read-only compute confirmed customer, sale and purchase tables could be queried. The production branch was not restored or changed.
+- The recovery-test branch and its read-only compute were deleted after verification; the production branch remained. Application-managed offsite backups, a longer retention plan and a production restore procedure remain open.

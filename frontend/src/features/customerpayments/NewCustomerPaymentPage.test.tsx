@@ -12,8 +12,8 @@ vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'payer
 const customer = { id: 'customer', name: 'Customer', active: true, version: 0 }
 beforeEach(async () => { await i18n.changeLanguage('en'); await localDrafts.customerPaymentDrafts.clear() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
-function mount() {
-  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><NewCustomerPaymentPage /></MemoryRouter></QueryClientProvider>)
+function mount(route = '/') {
+  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[route]}><NewCustomerPaymentPage /></MemoryRouter></QueryClientProvider>)
 }
 function reference(url: string) {
   return { ok: true, status: 200, json: async () => ({ items: url.includes('/master-data/customers') ? [customer] : [], hasMore: false }) }
@@ -65,4 +65,13 @@ test('overpayment rejection restores an editable draft without losing values', a
   await waitFor(() => expect(screen.getByRole('button', { name: 'Save payment' })).toBeEnabled())
   expect((await localDrafts.customerPaymentDrafts.get('payer'))?.draft.amount).toBe('50')
   expect((await localDrafts.customerPaymentDrafts.get('payer'))?.draft.submitted).toBeUndefined()
+})
+
+test('payment opened from a balance preselects the customer without replacing an existing draft', async () => {
+  const fetcher = vi.fn(async (url: string) => url === '/api/customers/customer'
+    ? { ok: true, status: 200, json: async () => customer } : reference(url))
+  vi.stubGlobal('fetch', fetcher)
+  mount('/customer-payments/new?customerId=customer')
+  expect(await screen.findByRole('combobox', { name: 'Search Customers' })).toHaveValue('Customer')
+  await waitFor(async () => expect((await localDrafts.customerPaymentDrafts.get('payer'))?.draft.customer?.id).toBe('customer'))
 })

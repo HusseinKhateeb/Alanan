@@ -11,7 +11,7 @@ import { editRejectedSale, retrySale, syncSales } from './outbox'
 import type { QueuedSale } from './types'
 
 export function OfflineSales() {
-  const { user } = useAuth()
+  const { user, offline } = useAuth()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const client = useQueryClient()
@@ -36,7 +36,7 @@ export function OfflineSales() {
       finally { running = false }
     }
     async function cache() {
-      if (caching || navigator.onLine === false) return
+      if (caching || offline || navigator.onLine === false) return
       caching = true
       try { await refreshReferences(user!.id); if (current) setError('') }
       catch (failure) { if (current) setError(failure instanceof ApiError ? failure.code : 'OFFLINE_STORAGE_ERROR') }
@@ -48,9 +48,10 @@ export function OfflineSales() {
     window.addEventListener('online', online)
     online()
     return () => { current = false; subscription.unsubscribe(); window.clearInterval(interval); window.clearInterval(cacheInterval); window.removeEventListener('online', online) }
-  }, [user, allowed, client])
+  }, [user, allowed, offline, client])
   if (!user || !allowed) return null
   async function refresh() {
+    if (offline) return
     setRefreshing(true)
     try { await refreshReferences(user!.id); setError('') } catch (failure) { setError(failure instanceof ApiError ? failure.code : 'OFFLINE_STORAGE_ERROR') }
     finally { setRefreshing(false) }
@@ -66,7 +67,7 @@ export function OfflineSales() {
   return <aside className="setup"><details><summary>{t('offline.title')} ({mine.filter(row => row.status !== 'SYNCED').length})</summary>
     <p>{cachedAt ? t('offline.cacheReady', { date: new Date(cachedAt).toLocaleString() }) : t('offline.cacheMissing')}</p>
     <p>{t('offline.sessionHelp')}</p>
-    <button disabled={refreshing} onClick={() => void refresh()}>{t('offline.refresh')}</button>
+    <button disabled={refreshing || offline} onClick={() => void refresh()}>{t('offline.refresh')}</button>
     {error && <p role="alert">{t('errors.' + error, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {mine.length === 0 && <p>{t('offline.empty')}</p>}
     <ul>{mine.map(row => <li key={row.key}>

@@ -19,6 +19,7 @@ import org.springframework.security.oauth2.jwt.*;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -62,6 +63,32 @@ class AuthenticationIntegrationTest {
             .andReturn().getResponse().getContentAsString());
     }
     String ownerToken() throws Exception { return login("OWNER", PASSWORD).get("accessToken").asText(); }
+    @Test void refreshCookieRestoresLoginRotatesAndLogoutRevokesIt() throws Exception {
+        MockHttpServletResponse login = mvc.perform(post("/api/auth/login")
+            .contentType("application/json").content(json.writeValueAsString(Map.of("username", "owner", "password", PASSWORD))))
+            .andExpect(status().isOk()).andReturn().getResponse();
+        String firstCookie = login.getHeader("Set-Cookie");
+        assertThat(firstCookie).contains("HttpOnly", "SameSite=Strict", "Path=/api/auth");
+        assertThat(firstCookie).doesNotContain(PASSWORD);
+        String first = firstCookie.split(";", 2)[0];
+        String firstAccess = json.readTree(login.getContentAsString()).get("accessToken").asText();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_sessions WHERE token_hash = ?", Integer.class, first.split("=", 2)[1])).isZero();
+        mvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("alanan_refresh", first.split("=", 2)[1])))
+            .andExpect(status().isForbidden());
+        MockHttpServletResponse refreshed = mvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("alanan_refresh", first.split("=", 2)[1]))
+            .header("X-Alanan-Session", "refresh"))
+            .andExpect(status().isOk()).andExpect(jsonPath("user.username").value("owner"))
+            .andReturn().getResponse();
+        String second = refreshed.getHeader("Set-Cookie").split(";", 2)[0];
+        assertThat(second).isNotEqualTo(first);
+        assertThat(json.readTree(refreshed.getContentAsString()).get("accessToken").asText()).isNotEqualTo(firstAccess);
+        mvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("alanan_refresh", first.split("=", 2)[1])).header("X-Alanan-Session", "refresh"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer " + firstAccess).cookie(new jakarta.servlet.http.Cookie("alanan_refresh", second.split("=", 2)[1])))
+            .andExpect(status().isNoContent()).andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")));
+        mvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("alanan_refresh", second.split("=", 2)[1])).header("X-Alanan-Session", "refresh"))
+            .andExpect(status().isUnauthorized());
+    }
     UUID employee() {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id, username, password_hash, display_name) VALUES (?, 'employee', ?, 'Employee')", id, passwords.encode(PASSWORD));
@@ -98,6 +125,15 @@ class AuthenticationIntegrationTest {
         mvc.perform(put("/api/customers/00000000-0000-0000-0000-000000000001").header("Authorization", "Bearer " + token)
             .contentType("application/json").content("{\"name\":\"Renamed\",\"active\":false,\"version\":0}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("WALK_IN_PROTECTED"));
+    }
+    @Test void customerDetailSupportsPaymentPrefillForAuthorizedUsers() throws Exception {
+        String owner=ownerToken();
+        var customer=createReference("customers","{\"name\":\"Payment customer\",\"active\":true,\"version\":0}",owner);
+        employee(); String clerk=login("employee",PASSWORD).get("accessToken").asText();
+        mvc.perform(get("/api/customers/"+customer.get("id").asText()).header("Authorization","Bearer "+clerk))
+            .andExpect(status().isOk()).andExpect(jsonPath("name").value("Payment customer"));
+        mvc.perform(get("/api/customers/"+UUID.randomUUID()).header("Authorization","Bearer "+clerk))
+            .andExpect(status().isNotFound());
     }
     @Test void referenceEditsAreVersionedAndAudited() throws Exception {
         String token = ownerToken();
@@ -184,6 +220,46 @@ class AuthenticationIntegrationTest {
         mvc.perform(get("/api/users").header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden()).andExpect(jsonPath("errorCode").value("FORBIDDEN"));
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+    }
+    @Test void adminCreatesUserWithRoleAndIndividualPermissionOverrides() throws Exception {
+        String owner = ownerToken();
+        mvc.perform(get("/api/users/options").header("Authorization", "Bearer " + owner))
+            .andExpect(status().isOk()).andExpect(jsonPath("roles[0].name").exists());
+        String body = """
+            {"username":"clerk","displayName":"Sales Clerk","password":"correct-horse-battery","preferredLanguage":"en",
+             "active":true,"roles":["EMPLOYEE"],"permissions":["SALES_CREATE","COST_VIEW"]}
+            """;
+        mvc.perform(post("/api/users").header("Authorization", "Bearer " + owner).contentType("application/json").content(body))
+            .andExpect(status().isCreated()).andExpect(jsonPath("username").value("clerk"))
+            .andExpect(jsonPath("password").doesNotExist());
+        var clerk = login("clerk", "correct-horse-battery");
+        assertThat(clerk.get("user").get("permissions").toString()).contains("SALES_CREATE", "COST_VIEW").doesNotContain("SALES_VIEW", "USERS_MANAGE");
+        assertThat(passwords.matches("correct-horse-battery", jdbc.queryForObject("SELECT password_hash FROM users WHERE username='clerk'", String.class))).isTrue();
+        assertThat(jdbc.queryForObject("SELECT new_values::text FROM user_audit WHERE action='CREATE' AND target_user_id=(SELECT id FROM users WHERE username='clerk')", String.class))
+            .doesNotContain("correct-horse-battery", "password_hash");
+        mvc.perform(post("/api/users").header("Authorization", "Bearer " + owner).contentType("application/json").content(body.replace("clerk", "CLERK")))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("USERNAME_EXISTS"));
+        mvc.perform(post("/api/users").header("Authorization", "Bearer " + clerk.get("accessToken").asText()).contentType("application/json").content(body.replace("clerk", "another")))
+            .andExpect(status().isForbidden());
+        mvc.perform(get("/api/users/options").header("Authorization", "Bearer " + clerk.get("accessToken").asText()))
+            .andExpect(status().isForbidden());
+    }
+    @Test void manageUsersPermissionWithoutAdminRoleCannotCreateAccounts() throws Exception {
+        UUID id = employee();
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,true FROM permissions WHERE code='USERS_MANAGE'", id);
+        var login = login("employee", PASSWORD);
+        assertThat(login.get("user").get("permissions").toString()).contains("USERS_MANAGE");
+        assertThat(login.get("user").get("roles").toString()).contains("EMPLOYEE").doesNotContain("ADMIN");
+        String token = login.get("accessToken").asText();
+        String body = """
+            {"username":"blocked","displayName":"Blocked","password":"correct-horse-battery","preferredLanguage":"en",
+             "active":true,"roles":["EMPLOYEE"],"permissions":[]}
+            """;
+        mvc.perform(get("/api/users").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+        mvc.perform(get("/api/users/options").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/users").header("Authorization", "Bearer " + token).contentType("application/json").content(body))
+            .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username='blocked'", Integer.class)).isZero();
     }
     @Test void authorizationReflectsDatabaseChangesWithoutNewLogin() throws Exception {
         String token = ownerToken();

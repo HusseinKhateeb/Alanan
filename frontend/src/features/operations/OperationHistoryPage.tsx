@@ -10,6 +10,7 @@ import type { Page } from '../purchases/types'
 import type { OperationKind, OperationRecord } from './types'
 import { RecordSummary } from './OperationEntryPage'
 import { CancelControl } from '../cancellations/CancelControl'
+import { HardDeleteControl } from '../cancellations/HardDeleteControl'
 export function OperationHistoryPage({ kind }: { kind: OperationKind }) {
   const { user } = useAuth()
   return <History key={kind + user?.id} kind={kind} />
@@ -41,7 +42,8 @@ function History({ kind }: { kind: OperationKind }) {
     {query.error && <p role="alert">{t('errors.' + (query.error instanceof ApiError ? query.error.code : 'SERVER_ERROR'))}</p>}
     {query.data?.items.length === 0 && <p>{t('master.empty')}</p>}
     <div className="reference-list">{query.data?.items.map(record => <article key={record.id}><div><RecordSummary record={record} kind={kind} />
-      {kind === 'expenses' && <CancelControl endpoint={'/expenses/' + record.id} kind="expense" cancelled={record.cancellation_reason} />}</div></article>)}</div>
+      {kind === 'expenses' && <CancelControl endpoint={'/expenses/' + record.id} kind="expense" cancelled={record.cancellation_reason} />}
+      <HardDeleteControl kind={kind} id={record.id} /></div></article>)}</div>
     <div className="pagination"><button disabled={page === 0 || query.isFetching} onClick={() => setPage(page - 1)}>{t('auth.previous')}</button><button disabled={!query.data?.hasMore || query.isFetching} onClick={() => setPage(page + 1)}>{t('auth.next')}</button></div>
   </main>
 }

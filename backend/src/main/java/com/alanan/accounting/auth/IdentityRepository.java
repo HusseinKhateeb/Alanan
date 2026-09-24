@@ -22,16 +22,22 @@ public class IdentityRepository {
     public Optional<AuthUser> activeUser(UUID id, long tokenVersion) {
         return jdbc.query("SELECT id, username, display_name, preferred_language FROM users WHERE id = ? AND active AND token_version = ?",
             (rs, row) -> new AuthUser(id, rs.getString("username"), rs.getString("display_name"),
-                rs.getString("preferred_language"), permissions(id)), id, tokenVersion).stream().findFirst();
+                rs.getString("preferred_language"), permissions(id), roles(id)), id, tokenVersion).stream().findFirst();
+    }
+
+    private List<String> roles(UUID id) {
+        return jdbc.queryForList("SELECT r.name FROM roles r JOIN user_roles ur ON ur.role_id=r.id WHERE ur.user_id=? ORDER BY r.name",
+            String.class, id);
     }
 
     private List<String> permissions(UUID id) {
         return jdbc.queryForList("""
-            SELECT DISTINCT p.code FROM permissions p
-            JOIN role_permissions rp ON rp.permission_id = p.id
-            JOIN user_roles ur ON ur.role_id = rp.role_id
-            WHERE ur.user_id = ? ORDER BY p.code
-            """, String.class, id);
+            SELECT p.code FROM permissions p WHERE COALESCE(
+                (SELECT o.granted FROM user_permission_overrides o WHERE o.user_id=? AND o.permission_id=p.id),
+                EXISTS(SELECT 1 FROM role_permissions rp JOIN user_roles ur ON ur.role_id=rp.role_id
+                       WHERE ur.user_id=? AND rp.permission_id=p.id))
+            ORDER BY p.code
+            """, String.class, id, id);
     }
 
     public void event(UUID userId, String action) {

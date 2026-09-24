@@ -57,6 +57,28 @@ class PurchaseIntegrationTest {
         return json.readTree(mvc.perform(post("/api/purchases").header("Authorization","Bearer "+token).contentType("application/json").content(json.writeValueAsString(body)))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
     }
+    @Test void adminHardDeletionRestoresPurchaseCostButRejectsLaterMovements() throws Exception {
+        var purchase=create(request("0",List.of(item(spice,"2","20"))));
+        String path="/api/admin/deletions/purchases/"+purchase.get("id").asText();
+        jdbc.update("INSERT INTO inventory_movements(id,product_id,movement_type,quantity_change,reference_type,reference_id,created_by) VALUES (?,?,'CORRECTION',1,'CORRECTION',?,?)",
+            UUID.randomUUID(),spice,UUID.randomUUID(),identities.credentials("owner").orElseThrow().id());
+        mvc.perform(delete(path).header("Authorization","Bearer "+token).contentType("application/json").content("{\"reason\":\"Wrong invoice\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("DELETE_DEPENDENCIES"));
+        jdbc.update("DELETE FROM inventory_movements WHERE reference_type='CORRECTION'");
+        mvc.perform(delete(path).header("Authorization","Bearer "+token).contentType("application/json").content("{\"reason\":\"Wrong invoice\"}"))
+            .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM purchase_invoices",Integer.class)).isZero();
+    }
+    @Test void adminCanHardDeletePurchaseWithoutNormalCorrectionPermissions() throws Exception {
+        var purchase=create(request("0",List.of(item(spice,"1","20"))));
+        UUID owner=identities.credentials("owner").orElseThrow().id();
+        jdbc.update("INSERT INTO user_permission_overrides(user_id,permission_id,granted) SELECT ?,id,FALSE FROM permissions WHERE code IN ('PURCHASES_CREATE','AUDIT_VIEW')",owner);
+        mvc.perform(delete("/api/admin/deletions/purchases/"+purchase.get("id").asText())
+            .header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Wrong invoice\"}")) .andExpect(status().isNoContent());
+    }
     @Test void mixedPurchaseUpdatesStockCostPaymentBalanceAndAudit() throws Exception {
         var result=create(request("100",List.of(item(spice,"10","20"),item(honey,"2","40"))));
         assertThat(result.get("total").asText()).isEqualTo("280.00");
@@ -72,12 +94,98 @@ class PurchaseIntegrationTest {
         mvc.perform(get("/api/purchases/"+result.get("id").asText()).header("Authorization","Bearer "+token))
             .andExpect(status().isOk()).andExpect(jsonPath("items[0].product_name").value("Spice"));
     }
+    @Test void openingStockAddsOldGoodsWithCostAuditAndIdempotentRetry() throws Exception {
+        var input=Map.of("requestId",UUID.randomUUID(),"productId",spice,"quantity","10","unitCost","20",
+            "recordedDate","2026-01-01","reason","Goods held before system launch");
+        String body=json.writeValueAsString(input);
+        var created=json.readTree(mvc.perform(post("/api/inventory/adjustments").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(body)).andExpect(status().isCreated())
+            .andExpect(jsonPath("new_stock").value("10.000")).andReturn().getResponse().getContentAsString());
+        mvc.perform(post("/api/inventory/adjustments").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(body)).andExpect(status().isCreated())
+            .andExpect(jsonPath("id").value(created.get("id").asText()));
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("20");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements WHERE movement_type='OPENING'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_adjustment_audit",Integer.class)).isEqualTo(1);
+        create(request("0",List.of(item(spice,"10","30"))));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("20");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("25");
+        mvc.perform(get("/api/inventory/movements").param("productId",spice.toString()).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("items[1].movement_type").value("OPENING"));
+    }
+    @Test void openingStockHardDeletionRestoresPreviousValuation() throws Exception {
+        var opening=Map.of("requestId",UUID.randomUUID(),"productId",spice,"quantity","4","unitCost","12",
+            "recordedDate","2026-01-01","reason","Old stock");
+        var response=json.readTree(mvc.perform(post("/api/inventory/adjustments").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(opening))).andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString());
+        mvc.perform(delete("/api/admin/deletions/opening-stock/"+response.get("id").asText())
+            .header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Entered twice\"}")).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_adjustments",Integer.class)).isZero();
+    }
+    @Test void invalidOpeningStockDoesNotChangeInventory() throws Exception {
+        var fractional=Map.of("requestId",UUID.randomUUID(),"productId",honey,"quantity","1.5","unitCost","20",
+            "recordedDate","2026-01-01","reason","Old goods");
+        mvc.perform(post("/api/inventory/adjustments").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(fractional)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("WHOLE_PIECES_REQUIRED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_adjustments",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,honey)).isEqualByComparingTo("0");
+    }
     @Test void sequentialPurchasesUseWeightedAverageAndDoNotChangeSellingPrice() throws Exception {
         create(request("0",List.of(item(spice,"10","20"))));
         create(request("520",List.of(item(spice,"20","26"))));
         assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("24");
         assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("30");
         assertThat(jdbc.queryForObject("SELECT default_selling_price FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("45");
+    }
+    @Test void correctingLatestPurchaseAtomicallyRevaluesStockAndPreservesPaymentsAndAudit() throws Exception {
+        var first=create(request("0",List.of(item(spice,"10","20"))));
+        var second=create(request("20",List.of(item(spice,"2","30"))));
+        String id=second.get("id").asText();
+        var correction=Map.of("version",0,"invoiceDate","2026-01-02","reason","Supplier corrected quantity and cost",
+            "items",List.of(Map.of("quantity","4","unitCost","25")));
+        var wrongYear=Map.of("version",0,"invoiceDate","2025-12-31","reason","Wrong year",
+            "items",List.of(Map.of("quantity","4","unitCost","25")));
+        mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(wrongYear))).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("errorCode").value("INVOICE_YEAR_LOCKED"));
+        mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(correction))).andExpect(status().isOk()).andExpect(jsonPath("total").value("100.00"))
+            .andExpect(jsonPath("paid").value("20.00"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("14");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("21.428571");
+        assertThat(jdbc.queryForObject("SELECT sum(quantity_change) FROM inventory_movements WHERE product_id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("14");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM purchase_audit WHERE purchase_invoice_id=? AND action='EDIT'",Integer.class,UUID.fromString(id))).isEqualTo(1);
+        mvc.perform(get("/api/purchases/"+id).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("version").value(1)).andExpect(jsonPath("correction_allowed").value(true));
+        mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(correction))).andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("EDIT_CONFLICT"));
+        mvc.perform(get("/api/purchases/"+first.get("id").asText()).header("Authorization","Bearer "+token))
+            .andExpect(jsonPath("correction_allowed").value(false));
+        mvc.perform(post("/api/purchases/"+id+"/cancel").header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Supplier return\",\"refundReceivedConfirmed\":true}"))
+            .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("20");
+    }
+    @Test void correctionAfterLaterMovementOrBelowPaymentIsRejectedWithoutPartialEffects() throws Exception {
+        var first=create(request("15",List.of(item(spice,"2","10"))));
+        String id=first.get("id").asText();
+        var underpaid=Map.of("version",0,"invoiceDate","2026-01-01","reason","Cost correction",
+            "items",List.of(Map.of("quantity","1","unitCost","10")));
+        mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(underpaid))).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("errorCode").value("PAYMENT_EXCEEDS_TOTAL"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("2");
+        create(request("0",List.of(item(spice,"1","30"))));
+        mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(underpaid))).andExpect(status().isConflict())
+            .andExpect(jsonPath("errorCode").value("PURCHASE_REVALUATION_REQUIRED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM purchase_audit WHERE purchase_invoice_id=? AND action='EDIT'",Integer.class,UUID.fromString(id))).isZero();
     }
     @Test void retriesAreIdempotentAndChangedPayloadConflicts() throws Exception {
         var body=request("10",List.of(item(spice,"2","10")));

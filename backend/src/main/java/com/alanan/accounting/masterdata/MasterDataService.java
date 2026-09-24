@@ -24,6 +24,20 @@ public class MasterDataService {
             new MasterDataInput(input.name(), null, null, null, null, input.phone(), null, null, true, null, 0L), user);
     }
 
+    @Transactional
+    @PreAuthorize("hasAuthority('EXPENSES_CREATE')")
+    public Map<String,Object> quickCreateExpenseCategory(QuickExpenseCategoryInput input, AuthUser user) {
+        return save(Catalog.EXPENSES, null,
+            new MasterDataInput(input.name(), null, null, null, null, null, null, null, true, null, 0L), user);
+    }
+
+    @Transactional
+    @PreAuthorize("hasAuthority('INVENTORY_ADJUST')")
+    public Map<String,Object> quickCreateWasteProduct(QuickWasteProductInput input, AuthUser user) {
+        return save(Catalog.PRODUCTS, null,
+            new MasterDataInput(input.name(), input.code(), input.category(), input.trackingType(), input.price(), null, null, null, true, null, 0L), user);
+    }
+
     public Page list(Catalog catalog, String query, int page, boolean activeOnly, String phone, AuthUser user) {
         requireRead(catalog, user);
         if (page < 0 || query.length() > 200 || (phone != null && phone.length() > 60)) fail("VALIDATION_FAILED");
@@ -68,6 +82,16 @@ public class MasterDataService {
             case EXPENSES -> user.permissions().contains("EXPENSES_CREATE");
         };
         if (!allowed) throw new AccessDeniedException("Missing reference-data capability");
+    }
+
+    public Map<String,Object> detail(Catalog catalog, String rawId, AuthUser user) {
+        requireRead(catalog,user);
+        Object id;
+        try { id = catalog == Catalog.PAYMENTS ? Long.valueOf(rawId) : UUID.fromString(rawId); }
+        catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND"); }
+        var rows=jdbc.queryForList("SELECT " + columns(catalog) + " FROM " + catalog.table + " WHERE id=?",id);
+        if (rows.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
+        return external(rows.getFirst());
     }
 
     @Transactional

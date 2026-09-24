@@ -24,7 +24,7 @@ export function NewSalePage() {
 }
 function SaleEditor({ userId }: { userId: string }) {
   const { t } = useTranslation()
-  const { user } = useAuth()
+  const { user, offline } = useAuth()
   const client = useQueryClient()
   const [draft, setDraft] = useState<SaleDraft | null>(null)
   const [queued, setQueued] = useState(false)
@@ -93,6 +93,7 @@ function SaleEditor({ userId }: { userId: string }) {
   const totals = draft ? preview(draft.items, draft.paidNow) : null
   return <main className="purchase-page">
     <Link to="/">{t('home')}</Link><h1>{t('sales.new')}</h1>
+    {offline && <p role="status">{t('offline.workspaceHelp')}</p>}
     {storageFailed && <p role="alert">{t('purchase.storageError')}</p>}
     {!draft && !storageFailed && <p role="status">{t('sales.loadingDraft')}</p>}
     {draft?.receipt ? <section className="purchase-receipt" role="status">
@@ -114,13 +115,14 @@ function SaleEditor({ userId }: { userId: string }) {
       <form onSubmit={submit}>
         <fieldset disabled={locked} className="purchase-header-fields">
           <ReferenceSelector kind="customers" combined id="sale-customer" value={draft.customer} disabled={locked} onChange={customer => update({ ...draft, customer })} />
-          <button type="button" disabled={locked} onClick={() => setCustomerForm(open => !open)}>{t('sales.newCustomer')}</button>
+          <button type="button" disabled={locked || offline} onClick={() => setCustomerForm(open => !open)}>{t('sales.newCustomer')}</button>
           <label>{t('purchase.date')}<input required type="date" value={draft.invoiceDate} aria-invalid={!!error?.fieldErrors.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} />
             {error?.fieldErrors.invoiceDate && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
         </fieldset>
         {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1}
           onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
-          onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })} />)}
+          onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })}
+          onNext={() => { if (index === draft.items.length - 1) addLine(); else requestAnimationFrame(() => document.getElementById('sale-line-' + draft.items[index + 1].localId + '-search')?.focus()) }} />)}
         <button type="button" disabled={locked || draft.items.length >= 100} onClick={addLine}>{t('purchase.addLine')}</button>
         <fieldset disabled={locked} className="purchase-header-fields">
           <label>{t('purchase.paidNow')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.paidNow}

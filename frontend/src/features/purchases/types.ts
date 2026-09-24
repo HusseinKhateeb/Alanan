@@ -13,7 +13,7 @@ export interface PurchaseDraft {
 }
 export interface PurchaseSummary { id: string; invoice_number: string; supplier_id: string; supplier_name: string; invoice_date: string; total: string; paid: string; outstanding: string; status: string }
 export interface PurchaseDetail extends PurchaseSummary {
-  supplier_reference: string | null; notes: string | null
+  supplier_reference: string | null; notes: string | null; version: number; correction_allowed: boolean
   items: { product_id: string; product_name: string; tracking_type: string; quantity: string; unit_cost: string; line_total: string }[]
   payments: { id: string; payment_date: string; payment_method_name: string; amount: string; active: boolean }[]
   cancellation: { reason: string; refund_received: string; refund_method_name: string | null; created_at: string } | null

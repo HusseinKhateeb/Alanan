@@ -101,7 +101,7 @@ function PurchaseEditor({ userId }: { userId: string }) {
         onSaved={supplier => { update({ ...draft, supplier }); setSupplierForm(false); void client.invalidateQueries({ queryKey: ['purchase-reference'] }) }} />}
       <form onSubmit={submit}>
         <fieldset disabled={locked} className="purchase-header-fields">
-          <ReferenceSelector kind="suppliers" id="purchase-supplier" value={draft.supplier} disabled={locked} onChange={supplier => update({ ...draft, supplier })} />
+          <ReferenceSelector kind="suppliers" id="purchase-supplier" value={draft.supplier} disabled={locked} combined onChange={supplier => update({ ...draft, supplier })} />
           {user?.permissions.includes('SETTINGS_MANAGE') && <button type="button" onClick={() => setSupplierForm(!supplierForm)}>{t('purchase.newSupplier')}</button>}
           <label>{t('purchase.date')}<input required type="date" value={draft.invoiceDate} aria-invalid={!!error?.fieldErrors.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} />
             {error?.fieldErrors.invoiceDate && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>

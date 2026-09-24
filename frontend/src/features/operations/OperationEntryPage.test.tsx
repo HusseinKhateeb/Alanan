@@ -66,6 +66,47 @@ test('waste receipt displays negative-stock warning without inventing costs', as
   expect(await screen.findByRole('alert')).toHaveTextContent('calculated stock below zero')
   expect(screen.queryByText(/Cost of waste/)).not.toBeInTheDocument()
 })
+test('searches and selects an expense category in one field', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount('expenses')
+  const field = await screen.findByRole('combobox', { name: 'Search Expense categories' })
+  fireEvent.focus(field)
+  fireEvent.change(field, { target: { value: 'Rent' } })
+  fireEvent.click(await screen.findByRole('option', { name: 'Rent' }))
+  expect(field).toHaveValue('Rent')
+  await waitFor(async () => expect((await localDrafts.operationDrafts.get('operator:expenses'))?.draft.reference?.id).toBe('category'))
+})
+test('creates a new expense type on the entry page and selects it', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => url === '/api/expense-categories/quick'
+    ? { ok: true, status: 201, json: async () => ({ id: 'delivery', name: JSON.parse(String(options?.body)).name, active: true }) }
+    : reference(url)))
+  mount('expenses')
+  fireEvent.click(await screen.findByRole('button', { name: '+ New expense type' }))
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Delivery' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save and select type' }))
+  expect(await screen.findByRole('combobox', { name: 'Search Expense categories' })).toHaveValue('Delivery')
+  await waitFor(async () => expect((await localDrafts.operationDrafts.get('operator:expenses'))?.draft.reference?.id).toBe('delivery'))
+})
+test('creates a product from the waste page and selects it', async () => {
+  const requests: string[] = []
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/products/quick-waste') {
+      requests.push(String(options?.body))
+      return { ok: true, status: 201, json: async () => ({ id: 'old-honey', name: 'Old honey', code: 'OLD-H', tracking_type: 'PIECE', active: true }) }
+    }
+    return reference(url)
+  }))
+  mount('waste')
+  fireEvent.click(await screen.findByRole('button', { name: '+ New product' }))
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Old honey' } })
+  fireEvent.change(screen.getByLabelText('Product code'), { target: { value: 'OLD-H' } })
+  fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'HONEY' } })
+  fireEvent.change(screen.getByLabelText('Default selling price (₪ per unit)'), { target: { value: '25.00' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save and select product' }))
+  expect(await screen.findByRole('combobox', { name: 'Search Products' })).toHaveValue('Old honey')
+  expect(JSON.parse(requests[0])).toMatchObject({ code: 'OLD-H', category: 'HONEY', trackingType: 'PIECE' })
+  await waitFor(async () => expect((await localDrafts.operationDrafts.get('operator:waste'))?.draft.reference?.id).toBe('old-honey'))
+})
 test('expense history sends date and category filters and clears them', async () => {
   const urls: string[] = []
   vi.stubGlobal('fetch', vi.fn(async (url: string) => { urls.push(url); return reference(url) }))

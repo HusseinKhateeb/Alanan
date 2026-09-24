@@ -30,6 +30,10 @@
 .directory-link { display: inline-block; margin-bottom: 24px; }
 .user-list { display: grid; gap: 12px; }
 .user-list article { display: flex; gap: 16px; flex-wrap: wrap; padding: 20px; background: #fffef9; border: 1px solid #dec39c; border-radius: 12px; }
+.user-editor { max-width: 900px; }
+.user-choice-group { border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+.user-choice-group legend { font-weight: 700; padding: 0 6px; }
+.user-permissions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 0 16px; }
 .pagination { display: flex; gap: 16px; margin-top: 24px; }
 .catalog-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
 .catalog-nav a { padding: 10px 14px; border-radius: 8px; background: #f1dfc3; text-decoration: none; }

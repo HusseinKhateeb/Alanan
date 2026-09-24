@@ -19,8 +19,12 @@ public class PurchaseController {
     private final PurchaseService service;
     private final PurchaseQueries queries;
     private final PurchaseCancellationService cancellations;
+    private final com.alanan.accounting.purchases.application.PurchaseCorrectionService corrections;
     private final InvoicePdfService pdf;
-    public PurchaseController(PurchaseService service, PurchaseQueries queries, PurchaseCancellationService cancellations,InvoicePdfService pdf) { this.service=service; this.queries=queries; this.cancellations=cancellations; this.pdf=pdf; }
+    public PurchaseController(PurchaseService service, PurchaseQueries queries, PurchaseCancellationService cancellations,
+            com.alanan.accounting.purchases.application.PurchaseCorrectionService corrections,InvoicePdfService pdf) {
+        this.service=service; this.queries=queries; this.cancellations=cancellations; this.corrections=corrections; this.pdf=pdf;
+    }
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     Object create(@Valid @RequestBody PurchaseRequest request, @AuthenticationPrincipal AuthUser user) { return service.create(request,user); }
@@ -36,4 +40,6 @@ public class PurchaseController {
     }
     @PostMapping("/{id}/cancel")
     Object cancel(@PathVariable UUID id,@Valid @RequestBody CancelPurchaseRequest request,@AuthenticationPrincipal AuthUser user) { return cancellations.cancel(id,request,user); }
+    @PutMapping("/{id}")
+    Object correct(@PathVariable UUID id,@Valid @RequestBody CorrectPurchaseRequest request,@AuthenticationPrincipal AuthUser user) { return corrections.correct(id,request,user); }
 }

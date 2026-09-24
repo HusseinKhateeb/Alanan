@@ -7,6 +7,8 @@ import { useAuth } from '../../auth/AuthProvider'
 import { useFormUpdateGuard } from '../../app/pwa/formUpdateGuard'
 import { localDrafts } from '../../db/masterDataDrafts'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
+import { QuickExpenseCategoryForm } from './QuickExpenseCategoryForm'
+import { QuickWasteProductForm } from './QuickWasteProductForm'
 import { newOperation, operationRequest, saveOperationDraft } from './drafts'
 import type { OperationDraft, OperationKind, OperationRecord } from './types'
 export function OperationEntryPage({ kind }: { kind: OperationKind }) {
@@ -16,12 +18,15 @@ export function OperationEntryPage({ kind }: { kind: OperationKind }) {
   return <Editor key={user.id + kind} userId={user.id} kind={kind} />
 }
 function Editor({ userId, kind }: { userId: string; kind: OperationKind }) {
+  const { offline } = useAuth()
   const { t } = useTranslation()
   const client = useQueryClient()
   const [draft, setDraft] = useState<OperationDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [storageFailed, setStorageFailed] = useState(false)
+  const [categoryForm, setCategoryForm] = useState(false)
+  const [productForm, setProductForm] = useState(false)
   useFormUpdateGuard(!!draft && !draft.receipt)
   useEffect(() => {
     let current = true
@@ -77,8 +82,14 @@ function Editor({ userId, kind }: { userId: string; kind: OperationKind }) {
     {draft?.receipt ? <section role="status"><h2>{t('operations.saved')}</h2><RecordSummary record={draft.receipt} kind={kind} />
       <button onClick={() => void startNew()}>{t('operations.new.' + kind)}</button></section>
       : draft && <><p>{t('operations.draftNotice')}</p>{draft.submitted && <p role="status">{t('operations.pending')}</p>}
+      {kind === 'expenses' && categoryForm && !locked && <QuickExpenseCategoryForm onClose={() => setCategoryForm(false)}
+        onSelect={category => { update({ ...draft, reference: category }); setCategoryForm(false); void client.invalidateQueries({ queryKey: ['purchase-reference'] }) }} />}
+      {kind === 'waste' && productForm && !locked && <QuickWasteProductForm onClose={() => setProductForm(false)}
+        onSelect={product => { update({ ...draft, reference: product }); setProductForm(false); void client.invalidateQueries({ queryKey: ['purchase-reference'] }) }} />}
       <form onSubmit={submit}><fieldset disabled={locked} className="purchase-header-fields">
-        <ReferenceSelector kind={kind === 'expenses' ? 'expense-categories' : 'products'} id={kind + '-reference'} value={draft.reference} disabled={locked} onChange={reference => update({ ...draft, reference })} />
+        <ReferenceSelector kind={kind === 'expenses' ? 'expense-categories' : 'products'} id={kind + '-reference'} value={draft.reference} disabled={locked} combined onChange={reference => update({ ...draft, reference })} />
+        {kind === 'expenses' && !offline && <button type="button" onClick={() => setCategoryForm(!categoryForm)}>{t('operations.newExpenseCategory')}</button>}
+        {kind === 'waste' && !offline && <button type="button" onClick={() => setProductForm(!productForm)}>{t('operations.newWasteProduct')}</button>}
         <label>{t('operations.date')}<input required type="date" value={draft.date} onChange={event => update({ ...draft, date: event.target.value })} /></label>
         <label>{t(kind === 'expenses' ? 'operations.amount' : piece ? 'sales.pieces' : 'sales.kg')}<input required inputMode="decimal" pattern={kind === 'expenses' ? '[0-9]+([.][0-9]{1,2})?' : piece ? '[0-9]+' : '[0-9]+([.][0-9]{1,3})?'} maxLength={kind === 'expenses' ? 19 : 16} value={draft.value} onChange={event => update({ ...draft, value: event.target.value })} /></label>
         {kind === 'expenses' ? <ReferenceSelector kind="payment-methods" id="expense-method" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />

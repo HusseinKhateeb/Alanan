@@ -5,7 +5,7 @@ import { ApiError } from '../api/client'
 
 export function AccountControls() {
   const { t, i18n } = useTranslation()
-  const { user, logout, changeLanguage } = useAuth()
+  const { user, offline, logout, changeLanguage } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function run(action: () => Promise<void>) {
@@ -19,7 +19,7 @@ export function AccountControls() {
       <button disabled={busy} lang="en" aria-pressed={i18n.language === 'en'} onClick={() => void run(() => changeLanguage('en'))}>English</button>
     </div>
     {user && <><span className="account-name">{user.displayName}</span>
-      <button disabled={busy} onClick={() => void run(logout)}>{t('auth.signOut')}</button></>}
+      <button disabled={busy || offline} onClick={() => void run(logout)}>{t('auth.signOut')}</button></>}
     {error && <span role="alert" className="error">{t(`errors.${error}`, { defaultValue: t('errors.SERVER_ERROR') })}</span>}
   </div>
 }
