@@ -15,7 +15,7 @@ export function QuickWasteProductForm({ onSelect, onClose }: { onSelect: (produc
   const [error, setError] = useState<ApiError | null>(null)
   async function save(event: FormEvent) {
     event.preventDefault()
-    if (pending || !name.trim() || !code.trim() || !price) return
+    if (pending || !name.trim() || !price) return
     setPending(true); setError(null)
     try {
       const product = await api<ReferenceRecord>('/products/quick-waste', {
@@ -35,8 +35,9 @@ export function QuickWasteProductForm({ onSelect, onClose }: { onSelect: (produc
     <form onSubmit={event => void save(event)}>
       <label htmlFor="quick-waste-name">{t('master.name')}<input id="quick-waste-name" autoFocus required maxLength={200}
         value={name} disabled={pending} onChange={event => setName(event.target.value)} /></label>
-      <label htmlFor="quick-waste-code">{t('master.code')}<input id="quick-waste-code" required maxLength={60}
+      <label htmlFor="quick-waste-code">{t('master.code')}<input id="quick-waste-code" maxLength={60}
         value={code} disabled={pending} onChange={event => setCode(event.target.value)} /></label>
+      <p className="field-hint">{t('master.codeHelp')}</p>
       <label htmlFor="quick-waste-category">{t('master.category')}<select id="quick-waste-category" value={category} disabled={pending}
         onChange={event => changeCategory(event.target.value)}>
         {['SPICE', 'HONEY', 'OTHER'].map(option => <option key={option} value={option}>{t('master.' + option)}</option>)}
@@ -52,7 +53,7 @@ export function QuickWasteProductForm({ onSelect, onClose }: { onSelect: (produc
         pattern="[0-9]+([.][0-9]{1,6})?" maxLength={19} value={defaultCost} disabled={pending}
         onChange={event => setDefaultCost(event.target.value)} /></label>
       {error && <p role="alert" className="error">{t('errors.' + error.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
-      <div className="form-actions"><button className="primary-button" disabled={pending || !name.trim() || !code.trim() || !price}>
+      <div className="form-actions"><button className="primary-button" disabled={pending || !name.trim() || !price}>
         {t(pending ? 'master.saving' : 'operations.saveWasteProduct')}</button>
         <button type="button" disabled={pending} onClick={onClose}>{t('sales.cancelNewCustomer')}</button></div>
     </form>

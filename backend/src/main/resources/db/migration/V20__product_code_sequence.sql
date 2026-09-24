@@ -1,0 +1,1 @@
+CREATE SEQUENCE product_code_sequence;

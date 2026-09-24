@@ -127,6 +127,9 @@ public class MasterDataService {
         } else if (input.version() != 0) fail("VALIDATION_FAILED");
 
         var values = values(catalog, input);
+        if (catalog == Catalog.PRODUCTS && (input.code() == null || input.code().isBlank())) {
+            values.put("code", before == null ? nextProductCode() : before.get("code"));
+        }
         if (catalog == Catalog.PRODUCTS && before != null && !Objects.equals(before.get("tracking_type"),input.trackingType())
             && Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM purchase_items WHERE product_id=?) OR EXISTS(SELECT 1 FROM sale_items WHERE product_id=?) OR EXISTS(SELECT 1 FROM waste_records WHERE product_id=?)",Boolean.class,id,id,id)))
             fail("PRODUCT_UNIT_LOCKED");
@@ -167,12 +170,13 @@ public class MasterDataService {
         values.put("name", in.name().strip()); values.put("active", in.active());
         switch (catalog) {
             case PRODUCTS -> {
-                if (in.code() == null || in.code().isBlank() || in.price() == null
+                if (in.price() == null
                     || !Set.of("SPICE","HONEY","OTHER").contains(Objects.toString(in.category(), ""))
                     || !Set.of("WEIGHT","PIECE").contains(Objects.toString(in.trackingType(), ""))) fail("VALIDATION_FAILED");
                 if (("SPICE".equals(in.category()) && !"WEIGHT".equals(in.trackingType()))
                     || ("HONEY".equals(in.category()) && !"PIECE".equals(in.trackingType()))) fail("INVALID_TRACKING_TYPE");
-                values.put("code", in.code().strip()); values.put("category", in.category());
+                if (in.code() != null && !in.code().isBlank()) values.put("code", in.code().strip());
+                values.put("category", in.category());
                 values.put("tracking_type", in.trackingType()); values.put("default_selling_price", in.price());
                 values.put("default_purchase_cost", in.defaultCost());
                 values.put("notes", blank(in.notes()));
@@ -202,6 +206,14 @@ public class MasterDataService {
             case PAYMENTS -> "id,name,is_default,active,version";
             case EXPENSES -> "id,name,active,version";
         };
+    }
+    private String nextProductCode() {
+        String code;
+        do {
+            long number = Objects.requireNonNull(jdbc.queryForObject("SELECT nextval('product_code_sequence')", Long.class));
+            code = String.format(Locale.ROOT, "PRD-%06d", number);
+        } while (Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM products WHERE lower(code)=lower(?))", Boolean.class, code)));
+        return code;
     }
     private String columns(Catalog c, AuthUser user) {
         String selected = columns(c);

@@ -72,7 +72,8 @@ export function ReferenceForm({ catalog, record, onSaved, onClose, onSelect }: P
     <form onSubmit={save}>
       {field('name', true)}
       {catalog === 'products' && <>
-        {field('code', true)}
+        {field('code')}
+        <p className="field-hint">{t('master.codeHelp')}</p>
         <label htmlFor="category">{t('master.category')}</label>
         <select id="category" value={input.category} disabled={!loaded || pending} onChange={event => change('category', event.target.value)}>
           {['SPICE', 'HONEY', 'OTHER'].map(value => <option key={value} value={value}>{t('master.' + value)}</option>)}

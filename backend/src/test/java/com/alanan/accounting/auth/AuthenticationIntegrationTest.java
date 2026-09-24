@@ -147,6 +147,18 @@ class AuthenticationIntegrationTest {
             .content("{\"name\":\"Invalid\",\"price\":\"4.123\",\"active\":true,\"version\":0}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("fieldErrors.price").exists());
     }
+    @Test void productCodesGenerateWhenOmittedAndStayStableOnEdit() throws Exception {
+        String token = ownerToken();
+        String body = "{\"name\":\"Generated product\",\"category\":\"SPICE\",\"trackingType\":\"WEIGHT\",\"price\":\"12.00\",\"active\":true,\"version\":0}";
+        var first = createReference("products", body, token);
+        var second = createReference("products", body.replace("Generated product", "Another product"), token);
+        String code = first.get("code").asText();
+        assertThat(code).matches("PRD-[0-9]{6,}");
+        assertThat(second.get("code").asText()).isNotEqualTo(code);
+        mvc.perform(put("/api/products/" + first.get("id").asText()).header("Authorization", "Bearer " + token)
+            .contentType("application/json").content(body.replace("Generated product", "Renamed product")))
+            .andExpect(status().isOk()).andExpect(jsonPath("code").value(code));
+    }
     @Test void phoneLookupFindsDuplicatesAndWalkInIsProtected() throws Exception {
         String token = ownerToken();
         String phone = "0599" + String.format("%06d", new java.security.SecureRandom().nextInt(1000000));

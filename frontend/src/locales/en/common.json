@@ -96,6 +96,7 @@
     "edit": "Edit record",
     "name": "Name",
     "code": "Product code",
+    "codeHelp": "Leave blank to generate a product code automatically.",
     "category": "Category",
     "trackingType": "Unit",
     "price": "Default selling price (₪ per unit)",
