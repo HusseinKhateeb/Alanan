@@ -37,6 +37,17 @@ test('searches and selects a supplier in one purchase field', async () => {
   expect(field).toHaveValue('Supplier')
   await waitFor(async () => expect((await localDrafts.purchaseDrafts.get('buyer'))?.draft.supplier?.id).toBe('supplier'))
 })
+test('searches and selects a product in one purchase field', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount()
+  const field = await screen.findByRole('combobox', { name: 'Search Products' })
+  fireEvent.focus(field)
+  fireEvent.change(field, { target: { value: 'Spi' } })
+  fireEvent.click(await screen.findByRole('option', { name: 'Spice' }))
+  expect(field).toHaveValue('Spice')
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  await waitFor(async () => expect((await localDrafts.purchaseDrafts.get('buyer'))?.draft.items[0].product?.id).toBe('spice'))
+})
 test('Enter on a completed purchase line adds the next item', async () => {
   await prepared()
   vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))

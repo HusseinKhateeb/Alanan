@@ -86,7 +86,7 @@ function PurchaseEditor({ userId }: { userId: string }) {
     if (!draft || draft.items.length >= 100) return
     const item = newItem()
     update({ ...draft, items: [...draft.items, item] })
-    requestAnimationFrame(() => document.getElementById('product-' + item.localId + '-search')?.focus())
+    requestAnimationFrame(() => document.getElementById('product-' + item.localId)?.focus())
   }
   const locked = busy || !!draft?.submitted
   const totals = draft ? preview(draft.items, draft.paidNow) : null
@@ -116,7 +116,7 @@ function PurchaseEditor({ userId }: { userId: string }) {
         {draft.items.map((item, index) => <PurchaseLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1}
           errors={error?.fieldErrors ?? {}} onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
           onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })}
-          onNext={() => { if (index === draft.items.length - 1) addLine(); else requestAnimationFrame(() => document.getElementById('product-' + draft.items[index + 1].localId + '-search')?.focus()) }} />)}
+          onNext={() => { if (index === draft.items.length - 1) addLine(); else requestAnimationFrame(() => document.getElementById('product-' + draft.items[index + 1].localId)?.focus()) }} />)}
         <button type="button" disabled={locked || draft.items.length >= 100} onClick={addLine}>{t('purchase.addLine')}</button>
         <fieldset disabled={locked} className="purchase-header-fields">
           <label>{t('purchase.paidNow')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.paidNow}

@@ -10,7 +10,7 @@ export function PurchaseLineEditor({ item, index, disabled, canRemove, onChange,
   const quantityError = errors[`items[${index}].quantity`], costError = errors[`items[${index}].unitCost`]
   return <fieldset className="purchase-line" disabled={disabled}>
     <legend>{t('purchase.line', { number: index + 1 })}</legend>
-    <ReferenceSelector kind="products" id={'product-' + item.localId} value={item.product} disabled={disabled} onChange={product => {
+    <ReferenceSelector kind="products" combined id={'product-' + item.localId} value={item.product} disabled={disabled} onChange={product => {
       onChange({ ...item, product, unitCost: product?.default_purchase_cost ? formatUnitCost(product.default_purchase_cost) : '' })
       if (product) requestAnimationFrame(() => document.getElementById('purchase-quantity-' + item.localId)?.focus())
     }} />
