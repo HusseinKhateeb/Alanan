@@ -222,6 +222,20 @@ class AuthenticationIntegrationTest {
             .contentType("application/json").content("{\"name\":\"Changed\",\"active\":true,\"version\":0}"))
             .andExpect(status().isForbidden());
     }
+    @Test void quickCustomerRetryReturnsSameRecordAfterLostResponse() throws Exception {
+        employee(); String token = login("employee", PASSWORD).get("accessToken").asText();
+        String requestId = java.util.UUID.randomUUID().toString();
+        String body = "{\"name\":\"Offline customer\",\"phone\":\"0599876543\",\"requestId\":\"" + requestId + "\"}";
+        var first = json.readTree(mvc.perform(post("/api/customers/quick").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mvc.perform(post("/api/customers/quick").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content(body)).andExpect(status().isCreated())
+            .andExpect(jsonPath("id").value(first.get("id").asText()));
+        mvc.perform(post("/api/customers/quick").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"name\":\"Changed customer\",\"requestId\":\"" + requestId + "\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("IDEMPOTENCY_CONFLICT"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customers WHERE name='Offline customer'",Integer.class)).isEqualTo(1);
+    }
     @Test void migrationsAndBootstrapCreateHashedAdminOnce() throws Exception {
         String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE username='owner'", String.class);
         assertThat(hash).isNotEqualTo(PASSWORD);

@@ -14,6 +14,7 @@ import { newItem, newSale, saveSaleDraft, toRequest } from './drafts'
 import { preview } from './calculations'
 import { useFormUpdateGuard } from '../../app/pwa/formUpdateGuard'
 import type { SaleDraft } from './types'
+import { localCustomerRequestId } from '../offline/localCustomers'
 
 export function NewSalePage() {
   const { user } = useAuth()
@@ -84,7 +85,7 @@ function SaleEditor({ userId }: { userId: string }) {
     catch { setStorageFailed(true) }
   }
   function addLine() {
-    if (!draft) return
+    if (!draft || draft.items.length >= 100) return
     const item = newItem()
     update({ ...draft, items: [...draft.items, item] })
     requestAnimationFrame(() => document.getElementById('sale-line-' + item.localId + '-search')?.focus())
@@ -115,7 +116,8 @@ function SaleEditor({ userId }: { userId: string }) {
       <form onSubmit={submit}>
         <fieldset disabled={locked} className="purchase-header-fields">
           <ReferenceSelector kind="customers" combined id="sale-customer" value={draft.customer} disabled={locked} onChange={customer => update({ ...draft, customer })} />
-          <button type="button" disabled={locked || offline} onClick={() => setCustomerForm(open => !open)}>{t('sales.newCustomer')}</button>
+          <button type="button" disabled={locked} onClick={() => setCustomerForm(open => !open)}>{t('sales.newCustomer')}</button>
+          {draft.customer && localCustomerRequestId(draft.customer.id) && <p role="status">{t('sales.customerPending')}</p>}
           <label>{t('purchase.date')}<input required type="date" value={draft.invoiceDate} aria-invalid={!!error?.fieldErrors.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} />
             {error?.fieldErrors.invoiceDate && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
         </fieldset>

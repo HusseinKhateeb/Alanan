@@ -46,13 +46,13 @@ export function PurchaseDetailPage() {
   }
 
   if (!allowed) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
-  return <main><Link to="/purchases">{t('purchase.list')}</Link>
+  return <main><Link to="/purchases">{t('purchase.list')}</Link><h1>{invoice?.invoice_number ?? t('purchase.view')}</h1>
     {invoice && <button type="button" onClick={() => void download()} disabled={downloading}>{t('invoice.downloadPdf')}</button>}
     {pdfError && <p role="alert">{t('errors.' + pdfError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {result.isPending && <p role="status">{t('master.loading')}</p>}
     {result.error && <p role="alert">{t('errors.' + (result.error instanceof ApiError ? result.error.code : 'SERVER_ERROR'))}</p>}
     {invoice && <>
-      <h1>{invoice.invoice_number}</h1><p>{invoice.supplier_name} · {invoice.invoice_date} · {t('purchase.' + invoice.status)}</p>
+      <p>{invoice.supplier_name} · {invoice.invoice_date} · {t('purchase.' + invoice.status)}</p>
       {invoice.supplier_reference && <p>{t('purchase.reference')}: {invoice.supplier_reference}</p>}
       <div className="reference-list">{invoice.items.map((item, index) => <article key={index}><div><strong>{item.product_name}</strong>
         <span>{item.quantity} {t(item.tracking_type === 'WEIGHT' ? 'master.WEIGHT' : 'master.PIECE')} × {item.unit_cost} ₪</span>

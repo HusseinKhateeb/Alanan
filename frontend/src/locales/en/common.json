@@ -22,6 +22,7 @@
   "updateAction": "Update app",
   "notFound": "This page does not exist.",
   "home": "Back to workspace",
+  "nav": { "title": "Quick navigation", "skip": "Skip to content", "home": "Home", "newSale": "New sale", "sales": "Sales", "newPurchase": "New purchase", "purchases": "Purchases", "newExpense": "New expense", "newWaste": "New waste", "inventory": "Inventory" },
   "auth": {
     "loginTitle": "Welcome back",
     "loginIntro": "Sign in to your Alanan workspace.",
@@ -157,7 +158,7 @@
     "loadingDraft": "Restoring your purchase draft…",
     "payments": "Invoice payments",
     "correctInvoice": "Correct purchase invoice",
-    "correctionHelp": "Only the latest stock and cost for each product can be corrected here. Product lines, supplier and payments stay unchanged. Give a reason for the audit trail.",
+    "correctionHelp": "You can correct the date, reference or notes on an older invoice without changing stock. Changing quantities or costs requires no later stock movements for those products. Product identities, supplier and payments stay unchanged. Give a reason for the audit trail.",
     "correctionReason": "Reason for correction",
     "saveCorrection": "Save correction",
     "cancelInvoice": "Cancel purchase invoice",
@@ -319,6 +320,8 @@
     "pendingRetry": "This sale was submitted, but confirmation may be missing. Its contents are locked. Retry the same sale when connected to avoid duplicates.",
     "negativeStock": "This sale left calculated stock below zero. Review physical stock; the sale was saved and the warning was recorded.",
     "walkInHelp": "Leave the customer blank for a walk-in sale. Walk-in sales must be fully paid. Select a named customer to record an unpaid balance.",
+    "offlineCustomerHelp": "This customer will be saved on this device. Queue the sale to create the customer first, then send the invoice when connected.",
+    "customerPending": "This customer is saved locally and will be created before the queued sale syncs.",
     "payFull": "Pay full total",
     "kind": "Item type",
     "PRODUCT": "Spice or product",
@@ -438,6 +441,7 @@
   "recordsTitle": "Records and balances",
   "moreSettings": "Products, settings and administration",
   "reports": {
+    "scrollHint": "Swipe the table sideways to see all columns.",
     "exportCsv": "Export all rows (CSV)",
     "title": "Accounting reports",
     "sales": "Sales",

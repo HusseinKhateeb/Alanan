@@ -104,9 +104,12 @@ function Editor({ userId, customerId }: { userId: string; customerId: string | n
     </section> : draft && <><p>{t('customerPayments.draftNotice')}</p>
       {draft.submitted && <p role="status">{t('customerPayments.pendingRetry')}</p>}
       <form onSubmit={submit}><fieldset disabled={locked} className="purchase-header-fields">
-        <ReferenceSelector kind="customers" combined excludeWalkIn id="payment-customer" value={draft.customer} activeOnly={false} disabled={locked} onChange={customer => update({ ...draft, customer, allocations: [] })} />
+        <ReferenceSelector kind="customers" combined excludeWalkIn id="payment-customer" value={draft.customer} activeOnly={false} disabled={locked} onChange={customer => {
+          update({ ...draft, customer, allocations: [] })
+          if (customer) requestAnimationFrame(() => document.getElementById('customer-payment-amount')?.focus())
+        }} />
         <label>{t('customerPayments.date')}<input required type="date" value={draft.paymentDate} onChange={event => update({ ...draft, paymentDate: event.target.value })} /></label>
-        <label>{t('customerPayments.amount')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.amount} onChange={event => update({ ...draft, amount: event.target.value })} /></label>
+        <label>{t('customerPayments.amount')} (₪)<input id="customer-payment-amount" required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.amount} onChange={event => update({ ...draft, amount: event.target.value })} /></label>
         <ReferenceSelector kind="payment-methods" id="payment-method" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />
         <label>{t('customerPayments.mode')}<select value={draft.mode} onChange={event => update({ ...draft, mode: event.target.value as PaymentDraft['mode'] })}>
           <option value="AUTO">{t('customerPayments.AUTO')}</option><option value="MANUAL">{t('customerPayments.MANUAL')}</option>

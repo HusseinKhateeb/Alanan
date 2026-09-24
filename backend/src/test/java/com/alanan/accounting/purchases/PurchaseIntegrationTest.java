@@ -165,7 +165,7 @@ class PurchaseIntegrationTest {
         mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
             .content(json.writeValueAsString(correction))).andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("EDIT_CONFLICT"));
         mvc.perform(get("/api/purchases/"+first.get("id").asText()).header("Authorization","Bearer "+token))
-            .andExpect(jsonPath("correction_allowed").value(false));
+            .andExpect(jsonPath("correction_allowed").value(true));
         mvc.perform(post("/api/purchases/"+id+"/cancel").header("Authorization","Bearer "+token).contentType("application/json")
             .content("{\"reason\":\"Supplier return\",\"refundReceivedConfirmed\":true}"))
             .andExpect(status().isOk());
@@ -186,6 +186,46 @@ class PurchaseIntegrationTest {
             .content(json.writeValueAsString(underpaid))).andExpect(status().isConflict())
             .andExpect(jsonPath("errorCode").value("PURCHASE_REVALUATION_REQUIRED"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM purchase_audit WHERE purchase_invoice_id=? AND action='EDIT'",Integer.class,UUID.fromString(id))).isZero();
+    }
+    @Test void metadataOnlyCorrectionOfOlderPurchasePreservesStockAndAllowsLaterCostCorrection() throws Exception {
+        var first=create(request("0",List.of(item(spice,"2","10"))));
+        var second=create(request("0",List.of(item(spice,"1","30"))));
+        String firstId=first.get("id").asText(), secondId=second.get("id").asText();
+        var metadata=Map.of("version",0,"invoiceDate","2026-01-03","supplierReference","Updated reference",
+            "notes","Corrected notes","reason","Corrected supplier paperwork",
+            "items",List.of(Map.of("quantity","2","unitCost","10")));
+        mvc.perform(put("/api/purchases/"+firstId).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(metadata))).andExpect(status().isOk()).andExpect(jsonPath("total").value("20.00"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("3");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("16.666667");
+        mvc.perform(get("/api/purchases/"+firstId).header("Authorization","Bearer "+token))
+            .andExpect(jsonPath("version").value(1)).andExpect(jsonPath("supplier_reference").value("Updated reference"));
+        var costChange=Map.of("version",1,"invoiceDate","2026-01-03","reason","Cost change",
+            "items",List.of(Map.of("quantity","2","unitCost","12")));
+        mvc.perform(put("/api/purchases/"+firstId).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(costChange))).andExpect(status().isConflict())
+            .andExpect(jsonPath("errorCode").value("PURCHASE_REVALUATION_REQUIRED"));
+        var latestMetadata=Map.of("version",0,"invoiceDate","2026-01-02","reason","Updated latest reference",
+            "supplierReference","Latest paperwork","items",List.of(Map.of("quantity","1","unitCost","30")));
+        mvc.perform(put("/api/purchases/"+secondId).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(latestMetadata))).andExpect(status().isOk());
+        var latest=Map.of("version",1,"invoiceDate","2026-01-02","reason","Latest cost correction",
+            "items",List.of(Map.of("quantity","1","unitCost","25")));
+        mvc.perform(put("/api/purchases/"+secondId).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(latest))).andExpect(status().isOk());
+    }
+    @Test void cancellationAfterMetadataOnlyCorrectionReversesOriginalStockEffects() throws Exception {
+        var purchase=create(request("0",List.of(item(spice,"2","10"))));
+        String id=purchase.get("id").asText();
+        var metadata=Map.of("version",0,"invoiceDate","2026-01-02","reason","Updated paperwork",
+            "items",List.of(Map.of("quantity","2","unitCost","10")));
+        mvc.perform(put("/api/purchases/"+id).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(metadata))).andExpect(status().isOk());
+        mvc.perform(post("/api/purchases/"+id+"/cancel").header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"reason\":\"Incorrect invoice\",\"refundReceivedConfirmed\":true}"))
+            .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT current_wac FROM products WHERE id=?",java.math.BigDecimal.class,spice)).isNull();
     }
     @Test void retriesAreIdempotentAndChangedPayloadConflicts() throws Exception {
         var body=request("10",List.of(item(spice,"2","10")));

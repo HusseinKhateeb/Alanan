@@ -82,6 +82,12 @@ function PurchaseEditor({ userId }: { userId: string }) {
     try { const next = newPurchase(); await savePurchaseDraft(userId, next); setDraft(next); setError(null); setStorageFailed(false) }
     catch { setStorageFailed(true) }
   }
+  function addLine() {
+    if (!draft || draft.items.length >= 100) return
+    const item = newItem()
+    update({ ...draft, items: [...draft.items, item] })
+    requestAnimationFrame(() => document.getElementById('product-' + item.localId + '-search')?.focus())
+  }
   const locked = busy || !!draft?.submitted
   const totals = draft ? preview(draft.items, draft.paidNow) : null
   return <main className="purchase-page">
@@ -109,8 +115,9 @@ function PurchaseEditor({ userId }: { userId: string }) {
         </fieldset>
         {draft.items.map((item, index) => <PurchaseLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1}
           errors={error?.fieldErrors ?? {}} onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
-          onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })} />)}
-        <button type="button" disabled={locked || draft.items.length >= 100} onClick={() => update({ ...draft, items: [...draft.items, newItem()] })}>{t('purchase.addLine')}</button>
+          onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })}
+          onNext={() => { if (index === draft.items.length - 1) addLine(); else requestAnimationFrame(() => document.getElementById('product-' + draft.items[index + 1].localId + '-search')?.focus()) }} />)}
+        <button type="button" disabled={locked || draft.items.length >= 100} onClick={addLine}>{t('purchase.addLine')}</button>
         <fieldset disabled={locked} className="purchase-header-fields">
           <label>{t('purchase.paidNow')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.paidNow}
             onChange={event => update({ ...draft, paidNow: event.target.value })} aria-invalid={!!error?.fieldErrors.paidNow} />

@@ -41,7 +41,7 @@ export function SaleDetailPage() {
     } catch (failure) { setCancelError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
     finally { setCancelling(false) }
   }
-  return <main><Link to="/sales">{t('sales.list')}</Link><h1>{sale?.invoice_number ?? t('purchase.view')}</h1>
+  return <main><Link to="/sales">{t('sales.list')}</Link><h1>{sale?.invoice_number ?? t('sales.list')}</h1>
     {sale && <button type="button" onClick={() => void download()} disabled={downloading}>{t('invoice.downloadPdf')}</button>}
     {pdfError && <p role="alert">{t('errors.' + pdfError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {result.isPending && <p role="status">{t('master.loading')}</p>}
@@ -71,6 +71,7 @@ export function SaleDetailPage() {
       {Number(sale.outstanding) > 0 && sale.customer_id && user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE') &&
         <p><Link to={'/customer-payments/new?customerId=' + sale.customer_id}>{t('customerPayments.new')}</Link></p>}
       <h2>{t('customerPayments.history')}</h2>
+      {sale.payments.length === 0 && <p>{t('master.empty')}</p>}
       <ul>{sale.payments.map(payment => <li key={payment.id}><Link to={'/customer-payments/' + payment.id}>{payment.payment_date} · {payment.amount} ₪ · {payment.payment_method_name}{!payment.active ? ' · ' + t('cancellation.cancelled') : ''}</Link></li>)}</ul>
       <p>{sale.notes}</p></>}
     {sale && <HardDeleteControl kind="sales" id={sale.id} returnTo="/sales" />}

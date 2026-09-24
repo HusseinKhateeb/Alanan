@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError, downloadCsv } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
+import { businessToday } from '../../utils/businessDate'
 
 type Kind = 'sales' | 'purchases' | 'expenses' | 'suppliers' | 'profit'
 interface Report { from: string; to: string; totals: Record<string, string | number>; rows: { items: Record<string, string>[]; hasMore: boolean } }
@@ -24,11 +25,6 @@ const totals: Record<Kind, string[]> = {
 }
 const money = new Set(['total', 'paid', 'outstanding', 'amount', 'purchased', 'current_outstanding', 'known_revenue', 'known_cost', 'known_gross_profit', 'unknown_cost_revenue', 'expenses', 'known_margin_less_expenses'])
 
-function today() {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Hebron', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
-  const value = (type: string) => parts.find(part => part.type === type)?.value ?? ''
-  return `${value('year')}-${value('month')}-${value('day')}`
-}
 function permitted(kind: Kind, permissions: string[]) {
   if (kind === 'sales') return permissions.includes('SALES_VIEW')
   if (kind === 'purchases' || kind === 'suppliers') return permissions.includes('PURCHASES_VIEW')
@@ -44,7 +40,7 @@ export function ReportPage() {
 function ReportView({ kind }: { kind: Kind }) {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const current = today()
+  const current = businessToday()
   const [from, setFrom] = useState(current.slice(0, 7) + '-01')
   const [to, setTo] = useState(current)
   const [period, setPeriod] = useState({ from, to })
@@ -88,7 +84,8 @@ function ReportView({ kind }: { kind: Kind }) {
         <strong dir="ltr">{data.totals[key]}{money.has(key) ? ' ₪' : ''}</strong></div>)}</div>
       {kind === 'suppliers' && <p className="dashboard-note">{t('reports.supplierNote')}</p>}
       {kind === 'profit' && <p className="dashboard-note">{t('reports.profitNote')}</p>}
-      <div className="report-table-wrap"><table className="report-table"><thead><tr>{columns[kind].map(key => <th key={key} scope="col">{t('reports.' + key)}</th>)}</tr></thead>
+      <p className="report-scroll-hint">{t('reports.scrollHint')}</p>
+      <div className="report-table-wrap" role="region" aria-label={t('reports.' + kind)} tabIndex={0}><table className="report-table"><thead><tr>{columns[kind].map(key => <th key={key} scope="col">{t('reports.' + key)}</th>)}</tr></thead>
         <tbody>{data.rows.items.map((row, index) => <tr key={row.id ?? index}>{columns[kind].map(key => <td key={key}>
           {key === 'invoice_number' && row.id ? <Link to={(kind === 'purchases' ? '/purchases/' : '/sales/') + row.id}>{row[key]}</Link>
             : row[key] == null || row[key] === '' ? '—' : money.has(key) ? <span dir="ltr">{row[key]} ₪</span> : key === 'status' ? t('purchase.' + row[key]) : row[key]}

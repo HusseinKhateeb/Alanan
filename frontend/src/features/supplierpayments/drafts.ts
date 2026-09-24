@@ -1,8 +1,8 @@
 import { localDrafts } from '../../db/masterDataDrafts'
+import { businessToday } from '../../utils/businessDate'
 import type { PaymentDraft, PaymentRequest } from './types'
 export function newPayment(): PaymentDraft {
-  const now = new Date()
-  return { requestId: crypto.randomUUID(), supplier: null, paymentDate: [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-'),
+  return { requestId: crypto.randomUUID(), supplier: null, paymentDate: businessToday(),
     amount: '', paymentMethod: null, notes: '', mode: 'AUTO', allocations: [] }
 }
 export function savePaymentDraft(userId: string, draft: PaymentDraft) {

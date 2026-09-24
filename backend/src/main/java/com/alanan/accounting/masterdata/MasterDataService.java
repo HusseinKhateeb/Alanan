@@ -2,6 +2,7 @@ package com.alanan.accounting.masterdata;
 
 import com.alanan.accounting.auth.AuthUser;
 import com.alanan.accounting.common.exception.ApiException;
+import com.alanan.accounting.common.api.RequestFingerprint;
 import java.util.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,14 +15,27 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MasterDataService {
     private final JdbcTemplate jdbc;
-    public MasterDataService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final RequestFingerprint fingerprint;
+    public MasterDataService(JdbcTemplate jdbc, RequestFingerprint fingerprint) { this.jdbc = jdbc; this.fingerprint = fingerprint; }
     public record Page(List<Map<String,Object>> items, boolean hasMore) {}
 
     @Transactional
     @PreAuthorize("hasAuthority('SALES_CREATE')")
     public Map<String,Object> quickCreateCustomer(QuickCustomerInput input, AuthUser user) {
-        return save(Catalog.CUSTOMERS, null,
+        String hash=fingerprint.hash(Map.of("name",input.name().strip(),"phone",Objects.toString(PhoneNormalizer.normalize(input.phone()),"")));
+        if(input.requestId()!=null) {
+            jdbc.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE",user.id());
+            var prior=jdbc.queryForList("SELECT request_hash,customer_id FROM quick_customer_requests WHERE user_id=? AND request_id=?",user.id(),input.requestId());
+            if(!prior.isEmpty()) {
+                if(!hash.equals(prior.getFirst().get("request_hash"))) throw new ApiException(HttpStatus.CONFLICT,"IDEMPOTENCY_CONFLICT");
+                return external(jdbc.queryForMap("SELECT " + columns(Catalog.CUSTOMERS) + " FROM customers WHERE id=?",prior.getFirst().get("customer_id")));
+            }
+        }
+        var customer=save(Catalog.CUSTOMERS, null,
             new MasterDataInput(input.name(), null, null, null, null, input.phone(), null, null, true, null, 0L), user);
+        if(input.requestId()!=null) jdbc.update("INSERT INTO quick_customer_requests(user_id,request_id,request_hash,customer_id) VALUES (?,?,?,?)",
+            user.id(),input.requestId(),hash,UUID.fromString((String)customer.get("id")));
+        return customer;
     }
 
     @Transactional

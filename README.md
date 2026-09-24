@@ -1,6 +1,6 @@
 # Alanan · محمص العنان
 
-Accounting and business management for Al Anan Roastery. Authentication, master data and purchase invoices with stock/WAC updates and supplier balances are implemented. See [implementation status](docs/implementation-status.md), [purchase API](docs/api/purchases.md), [authentication design](docs/decisions/0002-authentication.md), and [master-data API](docs/api/master-data.md).
+Accounting and business management for Al Anan Roastery. Authentication, master data, sales, purchases, payments, expenses, waste, reports and backup staging are implemented. Historical stock-cost replay, a reconciled cash/bank ledger and offline non-sale recording remain open. See [implementation status](docs/implementation-status.md), [purchase API](docs/api/purchases.md), [authentication design](docs/decisions/0002-authentication.md), and [master-data API](docs/api/master-data.md).
 
 ## Repository
 
@@ -118,7 +118,7 @@ Sign in online and expand **Offline sales and synchronization**. Wait for the ca
 
 Choose **Queue sale** to persist a completed sale before sending. You can start another sale while it is pending. The panel shows Pending, Syncing, Synced or Needs attention, with server explanations and retry actions. Validation-rejected entries can be reopened for correction; finish any other unsaved draft first.
 
-Synchronization resumes when the backend and the user's session reconnect while the app is open. If the backend is unavailable on reopen or at token renewal, the last signed-in account can use an offline sales workspace with cached records. The access token is never saved locally; only a limited non-secret account profile is kept on this browser. Queued sales stay local until a valid session returns, and clearing browser storage removes them. A server 401 removes offline access. Other workflows retain manual save/retry. Offline customer creation and service-worker background submission are not included. See [offline decisions and acceptance limits](docs/decisions/0006-offline-sales.md).
+Synchronization resumes when the backend and the user's session reconnect while the app is open. If the backend is unavailable on reopen or at token renewal, the last signed-in account can use an offline sales workspace with cached records. New Sale can save a new customer locally while offline; when that sale syncs, the server creates the customer using a stable request ID before sending the invoice. A duplicate phone or rejected customer leaves the sale in Needs attention for correction. The access token is never saved locally; only a limited non-secret account profile is kept on this browser. Queued sales stay local until a valid session returns, and clearing browser storage removes them. A server 401 removes offline access. Other workflows retain manual save/retry. Service-worker background submission is not included. See [offline decisions and acceptance limits](docs/decisions/0006-offline-sales.md).
 
 ## Expenses and waste
 

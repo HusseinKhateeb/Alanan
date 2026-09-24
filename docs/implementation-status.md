@@ -1,5 +1,7 @@
 # Implementation status
 
+> Current snapshot (2026-09-24): the detailed dated sections below are historical milestone notes. For current operation, use the feature-specific documentation and this snapshot. User access editing/deletion, password change, backup download/upload/staging, disposable restore testing, and offline quick-customer creation for queued sales are implemented. Older purchases can have date/reference/notes corrected without changing stock; quantity/cost changes with downstream stock still need full historical replay. Offline non-sale recording, an installed offsite backup schedule (deferred by the user), and real-phone acceptance are still open. The app does not provide a reconciled cash/bank ledger, so estimated profit is not a full financial statement.
+
 ## Started: repository foundation
 
 - Separate frontend/backend, environment templates, ignore rules and editor conventions.
@@ -65,7 +67,7 @@
 - Per-user complete reference snapshots and network-failure fallback with cache-age notices.
 - Durable sales outbox, automatic connected-session retry, multi-tab leases and immutable request IDs.
 - Pending/Syncing/Synced/Needs attention panel, rejected-sale correction and preserved drafts.
-- Access JWTs remain in memory; same-origin reload restores a seven-day rotating HttpOnly refresh session while online. A seven-day non-secret profile keeps the sale-only workspace available during backend outages, including reopen and token renewal. Queued sales wait for authenticated reconnection. No offline customer creation or service-worker background submission.
+- Access JWTs remain in memory; same-origin reload restores a seven-day rotating HttpOnly refresh session while online. A seven-day non-secret profile keeps the sale-only workspace available during backend outages, including reopen and token renewal. Queued sales wait for authenticated reconnection. New Sale now supports offline quick-customer creation before the queued invoice syncs. Service-worker background submission is not included.
 
 ## Implemented: expenses and waste
 
@@ -74,9 +76,9 @@
 - Capability restrictions, hidden cost fields, exact-request retries and durable bilingual forms.
 - Waste history filters by dates/product; product units locked after waste history.
 
-This is not a completed V1 release. Automatic synchronization for non-sales workflows remains open. A daily offsite backup installer and disposable restore drill are available, but no real backup schedule is installed until an offsite destination is configured. Sales and purchase invoice PDFs and bounded full-period report CSV exports are available. Purchase corrections are guarded to invoices without later stock movements; full historical revaluation, user editing/deactivation and password recovery remain pending. See the requirement-by-requirement [v6 specification review](specification-review.md).
+This is not a completed V1 release. Automatic synchronization for non-sales workflows remains open. A daily offsite backup installer and disposable restore drill are available, but the user has deferred installing a real offsite schedule. Sales and purchase invoice PDFs and bounded full-period report CSV exports are available. Purchase date/reference/notes corrections are allowed on older invoices; quantity and cost corrections remain guarded when later stock movements exist. Full historical revaluation and administrator-assisted password recovery remain pending. Users can already change their own password, and administrators can edit access or delete eligible accounts. See the requirement-by-requirement [v6 specification review](specification-review.md).
 
-Admins can export and download a PostgreSQL custom backup in the app, and upload a backup for checksum/format/table verification and separate staging. This does not apply an upload to the live database or prove a full restore; the disposable restore drill and offsite schedule remain separate tasks.
+Admins can export and download a PostgreSQL custom backup in the app, and upload a backup for checksum/format/table verification and separate staging. Each staged backup can be tested with an isolated PostgreSQL restore. The app does not apply an upload to the live database; recovery is a separate guarded operation. The offsite schedule still needs an actual destination and installation.
 
 ## Implemented: read-only audit history
 
@@ -86,11 +88,11 @@ Admins can export and download a PostgreSQL custom backup in the app, and upload
 
 ## Next milestones
 
-1. Remaining foundation: generated OpenAPI and user editing/password recovery workflows.
-2. Invoice integration of master data: offline customer creation and dependency-aware synchronization; online quick customer creation, admin inline supplier creation and reference caching are available.
+1. Remaining foundation: generated OpenAPI and administrator-assisted password recovery workflow.
+2. Invoice integration of master data: offline quick-customer creation and dependency-aware sale synchronization are available; broader offline reference creation remains open. Online quick customer creation, admin inline supplier creation and reference caching are available.
 3. Inventory valuation extensions: negative-stock reconciliation and safe historical invoice edits.
 4. Offline extensions: customer creation and dependency-aware synchronization, other accounting operations, and real-device acceptance.
-5. Safe historical editing/revaluation, scheduled offsite backups, guarded restore and production QA.
+5. Safe historical editing/revaluation, install and verify scheduled offsite backups, separate guarded recovery and production QA.
 
 Database integration checks use isolated PostgreSQL Testcontainers. PWA installation and offline behavior require browser/device acceptance tests before release.
 

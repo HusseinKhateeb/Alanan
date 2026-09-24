@@ -17,6 +17,13 @@
 .account-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .account-name { font-size: 14px; }
 .account-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: #f1dfc3; font-weight: 700; text-decoration: none; }
+.skip-link { position: fixed; top: 8px; inset-inline-start: 8px; z-index: 20; padding: 10px 14px; border-radius: 8px; background: var(--brown); color: white; transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
+.quick-navigation { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: 8px; overflow-x: auto; padding: 8px max(16px, calc((100vw - 1100px) / 2)); background: var(--paper); border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+.quick-navigation-link { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px; background: #fff7e9; text-decoration: none; font-weight: 600; white-space: nowrap; }
+.quick-navigation-link:hover { background: #f1dfc3; }
+.quick-navigation-link[aria-current="page"] { background: var(--brown); border-color: var(--brown); color: white; }
+#app-content { min-width: 0; scroll-margin-top: 64px; }
 .account-page { max-width: 760px; }
 .account-card { padding: 22px; margin: 16px 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
 .account-card h2 { margin-top: 0; }
@@ -175,6 +182,7 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .report-filters .primary-button { margin: 0; }
 .report-period { color: var(--muted); font-weight: 600; }
 .report-table-wrap { margin-top: 24px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.report-table-wrap:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .report-table { width: 100%; border-collapse: collapse; min-width: 690px; text-align: start; }
 .report-table th, .report-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
 .report-table td:last-child { white-space: normal; }
@@ -229,6 +237,7 @@ a.dashboard-card:hover { background: #f2d6a8; }
 .customer-options button:hover, .customer-options button[aria-selected="true"] { background: #f9ecd6; }
 .customer-options small { color: var(--muted); font-weight: 400; }
 .customer-options p { margin: 8px; color: var(--muted); }
+.reference-list pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .quick-customer { margin: 14px 0; padding: 18px; border: 1px solid var(--gold); border-radius: 14px; background: #fff8ea; }
 .quick-customer h2 { margin: 0 0 12px; font-size: 20px; }
 .quick-customer form { display: grid; gap: 12px; max-width: 540px; }
@@ -279,4 +288,8 @@ a.dashboard-card:hover { background: #f2d6a8; }
   .quick-action { min-height: 94px; padding: 14px; }
   .quick-action strong { font-size: 15px; }
   .dashboard { padding: 14px; }
+  .pagination { flex-wrap: wrap; }
+  .report-scroll-hint { display: block; margin-top: 12px; color: var(--muted); }
 }
+@media (min-width: 641px) { .report-scroll-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .quick-action:hover { transform: none; } }

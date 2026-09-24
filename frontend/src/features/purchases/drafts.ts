@@ -1,10 +1,10 @@
 import { localDrafts } from '../../db/masterDataDrafts'
+import { businessToday } from '../../utils/businessDate'
 import type { PurchaseDraft, PurchaseItem, PurchaseRequest } from './types'
 
 export function newItem(): PurchaseItem { return { localId: crypto.randomUUID(), product: null, quantity: '', unitCost: '' } }
 export function newPurchase(): PurchaseDraft {
-  const now = new Date()
-  const date = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+  const date = businessToday()
   return { requestId: crypto.randomUUID(), supplier: null, invoiceDate: date, supplierReference: '', notes: '', paidNow: '0', paymentMethod: null, items: [newItem()] }
 }
 export function savePurchaseDraft(userId: string, draft: PurchaseDraft) {

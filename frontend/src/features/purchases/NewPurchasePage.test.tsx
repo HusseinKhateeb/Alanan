@@ -37,6 +37,15 @@ test('searches and selects a supplier in one purchase field', async () => {
   expect(field).toHaveValue('Supplier')
   await waitFor(async () => expect((await localDrafts.purchaseDrafts.get('buyer'))?.draft.supplier?.id).toBe('supplier'))
 })
+test('Enter on a completed purchase line adds the next item', async () => {
+  await prepared()
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount()
+  const cost = await screen.findByLabelText(/Cost per unit/)
+  fireEvent.keyDown(cost, { key: 'Enter' })
+  expect(screen.getAllByText('Item 2').length).toBeGreaterThan(0)
+  await waitFor(async () => expect((await localDrafts.purchaseDrafts.get('buyer'))?.draft.items).toHaveLength(2))
+})
 test('persists immutable submitted data and retries the same key after remount', async () => {
   const draft = await prepared()
   const requests: string[] = []

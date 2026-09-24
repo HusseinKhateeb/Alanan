@@ -96,7 +96,7 @@ public class PurchaseCancellationService {
     }
     private Map<UUID,JsonNode> creationEffects(UUID id) {
         try {
-            String raw=jdbc.queryForObject("SELECT new_values::text FROM purchase_audit WHERE purchase_invoice_id=? AND action IN ('CREATE','EDIT') ORDER BY id DESC LIMIT 1",String.class,id);
+            String raw=jdbc.queryForObject("SELECT new_values::text FROM purchase_audit WHERE purchase_invoice_id=? AND action IN ('CREATE','EDIT') AND jsonb_array_length(COALESCE(new_values->'inventoryEffects','[]'::jsonb))>0 ORDER BY id DESC LIMIT 1",String.class,id);
             var effects=new HashMap<UUID,JsonNode>();
             for(JsonNode effect:json.readTree(raw).path("inventoryEffects")) effects.put(UUID.fromString(effect.path("productId").asText()),effect);
             return effects;

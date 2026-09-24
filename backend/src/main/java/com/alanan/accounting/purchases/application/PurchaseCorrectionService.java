@@ -33,6 +33,25 @@ public class PurchaseCorrectionService {
             throw new ApiException(HttpStatus.BAD_REQUEST,"INVOICE_YEAR_LOCKED");
         var items=jdbc.queryForList("SELECT id,product_id,quantity,unit_cost,line_total,tracking_type FROM purchase_items WHERE purchase_invoice_id=? ORDER BY line_number",id);
         if(items.size()!=request.items().size()) throw new ApiException(HttpStatus.CONFLICT,"PURCHASE_LINES_LOCKED");
+        boolean amountsUnchanged=true;
+        for(int i=0;i<items.size();i++) {
+            var original=items.get(i); var changed=request.items().get(i);
+            if(((BigDecimal)original.get("quantity")).compareTo(changed.quantity())!=0 ||
+                ((BigDecimal)original.get("unit_cost")).compareTo(changed.unitCost())!=0) { amountsUnchanged=false; break; }
+        }
+        if(amountsUnchanged) {
+            jdbc.update("UPDATE purchase_invoices SET invoice_date=?,supplier_reference=?,notes=?,version=version+1 WHERE id=?",
+                request.invoiceDate(),request.supplierReference(),request.notes(),id);
+            try {
+                jdbc.update("INSERT INTO purchase_audit(purchase_invoice_id,user_id,action,new_values) VALUES (?,?,'EDIT',?::jsonb)",id,user.id(),
+                    json.writeValueAsString(Map.of("before",invoice,"beforeItems",items,"reason",request.reason().strip(),
+                        "after",request,"inventoryEffects",List.of(),"metadataOnly",true)));
+            } catch(com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException(ex); }
+            BigDecimal paid=jdbc.queryForObject("SELECT COALESCE(sum(amount),0) FROM supplier_payment_allocations WHERE purchase_invoice_id=? AND active",BigDecimal.class,id);
+            BigDecimal total=(BigDecimal)invoice.get("total");
+            return new PurchaseService.Receipt(id.toString(),(String)invoice.get("invoice_number"),total.toPlainString(),
+                PurchaseMath.money(paid).toPlainString(),total.subtract(paid).toPlainString(),(String)invoice.get("status"));
+        }
         var products=new TreeMap<UUID,Map<String,Object>>();
         for(var item:items) {
             UUID productId=(UUID)item.get("product_id");
@@ -103,7 +122,7 @@ public class PurchaseCorrectionService {
     }
     private Map<UUID,JsonNode> latestEffects(UUID id) {
         try {
-            String raw=jdbc.queryForObject("SELECT new_values::text FROM purchase_audit WHERE purchase_invoice_id=? AND action IN ('CREATE','EDIT') ORDER BY id DESC LIMIT 1",String.class,id);
+            String raw=jdbc.queryForObject("SELECT new_values::text FROM purchase_audit WHERE purchase_invoice_id=? AND action IN ('CREATE','EDIT') AND jsonb_array_length(COALESCE(new_values->'inventoryEffects','[]'::jsonb))>0 ORDER BY id DESC LIMIT 1",String.class,id);
             var effects=new HashMap<UUID,JsonNode>();
             for(JsonNode effect:json.readTree(raw).path("inventoryEffects")) effects.put(UUID.fromString(effect.path("productId").asText()),effect);
             return effects;

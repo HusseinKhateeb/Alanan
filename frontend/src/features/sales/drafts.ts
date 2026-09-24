@@ -1,11 +1,11 @@
 import { localDrafts } from '../../db/masterDataDrafts'
+import { businessToday } from '../../utils/businessDate'
 import type { SaleDraft, SaleLine, SaleRequest } from './types'
 export function newItem(): SaleLine {
   return { localId: crypto.randomUUID(), kind: 'PRODUCT', reference: null, mode: 'BY_WEIGHT', quantity: '1', requestedAmount: '', unitPrice: '' }
 }
 export function newSale(): SaleDraft {
-  const now = new Date()
-  return { requestId: crypto.randomUUID(), customer: null, invoiceDate: [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-'),
+  return { requestId: crypto.randomUUID(), customer: null, invoiceDate: businessToday(),
     notes: '', paidNow: '0', autoPayFull: true, paymentMethod: null, items: [newItem()] }
 }
 export function saveSaleDraft(userId: string, draft: SaleDraft) {

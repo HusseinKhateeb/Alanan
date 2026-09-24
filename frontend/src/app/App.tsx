@@ -12,6 +12,7 @@ import { AccountControls } from '../auth/AccountControls'
 import { AccountPage } from '../auth/AccountPage'
 import { catalogs, canRead } from '../features/masterdata/catalogs'
 import { DashboardOverview } from '../features/dashboard/DashboardOverview'
+import { QuickNavigation } from './QuickNavigation'
 
 const AuditPage = lazy(() => import('../features/audit/AuditPage').then(m => ({ default: m.AuditPage })))
 const ReportPage = lazy(() => import('../features/reports/ReportPage').then(m => ({ default: m.ReportPage })))
@@ -95,10 +96,13 @@ function AuthenticatedApp() {
   const { t } = useTranslation()
   const { user, offline } = useAuth()
   return <>
+    <a className="skip-link" href="#app-content">{t('nav.skip')}</a>
     <header className="header"><Link className="brand" to="/">
       <img src="/icon-192.png" alt="" width="44" height="44" />
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
     </Link><AccountControls /></header>
+    <QuickNavigation />
+    <div id="app-content" tabIndex={-1}>
     {user && offline ? <Routes><Route path="/account" element={<AccountPage />} /><Route path="/sales/new" element={<NewSalePage />} /><Route path="*" element={<OfflineWorkspace />} /></Routes>
     : user ? <Suspense fallback={<main role="status">{t('master.loading')}</main>}><Routes>
       <Route path="/reports/:kind" element={<ReportPage />} />
@@ -115,6 +119,7 @@ function AuthenticatedApp() {
       <Route path="/supplier-balances" element={<SupplierBalancesPage />} /><Route path="/inventory" element={<InventoryPage />} />
       <Route path="*" element={<main><h1>{t('notFound')}</h1><Link to="/">{t('home')}</Link></main>} />
     </Routes></Suspense> : <LoginPage />}
+    </div>
     <OfflineSales key={user?.id ?? 'signed-out'} /><UpdateNotice />
   </>
 }

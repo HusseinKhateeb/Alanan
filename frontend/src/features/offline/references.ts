@@ -1,6 +1,7 @@
 import { apiForUser, ApiError } from '../../api/client'
 import { localDrafts } from '../../db/masterDataDrafts'
 import type { ReferencePage, ReferenceRecord } from '../masterdata/catalogs'
+import { localCustomerRequestId } from './localCustomers'
 export const offlineKinds = ['products', 'customers', 'container-types', 'payment-methods']
 export async function refreshReferences(userId: string) {
   for (const kind of offlineKinds) {
@@ -11,7 +12,12 @@ export async function refreshReferences(userId: string) {
       records.push(...result.items)
       if (!result.hasMore) break
     }
-    await localDrafts.references.put({ key: userId + ':' + kind, userId, kind, records, updatedAt: Date.now() })
+    const key = userId + ':' + kind
+    await localDrafts.transaction('rw', localDrafts.references, async () => {
+      const previous = await localDrafts.references.get(key)
+      const local = kind === 'customers' ? (previous?.records ?? []).filter(record => localCustomerRequestId(record.id)) : []
+      await localDrafts.references.put({ key, userId, kind, records: [...records, ...local], updatedAt: Date.now() })
+    })
   }
 }
 export async function cachedReferencePage(userId: string, kind: string, query: string, page: number): Promise<ReferencePage & { cached: true; updatedAt: number }> {

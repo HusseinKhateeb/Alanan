@@ -5,6 +5,7 @@ import { setAccessToken } from '../../api/client'
 import { newSale } from '../sales/drafts'
 import { claimSale, enqueueSale, editRejectedSale, retrySale, syncSales } from './outbox'
 import { cachedReferencePage, refreshReferences } from './references'
+import { saveLocalCustomer } from './localCustomers'
 
 beforeEach(async () => {
   await localDrafts.outbox.clear(); await localDrafts.saleDrafts.clear(); await localDrafts.references.clear()
@@ -106,6 +107,12 @@ test('failed refresh keeps the previous complete cache', async () => {
   await expect(refreshReferences('alice')).rejects.toThrow('NETWORK_ERROR')
   expect((await cachedReferencePage('alice', 'products', '', 0)).items[0].id).toBe('old')
 })
+test('reference refresh preserves a customer waiting for an offline sale', async () => {
+  const local = await saveLocalCustomer('alice', crypto.randomUUID(), 'Pending customer', '0599876543')
+  vi.stubGlobal('fetch', vi.fn(async () => response(200, { items: [], hasMore: false })))
+  await refreshReferences('alice')
+  expect((await cachedReferencePage('alice', 'customers', 'Pending', 0)).items.map(item => item.id)).toContain(local.id)
+})
 test('offline queue resumes when connection returns', async () => {
   const key = await enqueueSale('alice', draft())
   const fetcher = vi.fn(async () => response(201, receipt)); vi.stubGlobal('fetch', fetcher)
@@ -114,6 +121,69 @@ test('offline queue resumes when connection returns', async () => {
   vi.stubGlobal('navigator', { onLine: true })
   await syncSales('alice')
   expect((await localDrafts.outbox.get(key))?.status).toBe('SYNCED')
+})
+test('queued sale creates its local customer first and then sends the canonical customer ID', async () => {
+  const customer = await saveLocalCustomer('alice', crypto.randomUUID(), 'Offline customer', '0599876543')
+  const sale = { ...draft(), customer }
+  const key = await enqueueSale('alice', sale)
+  const calls: string[] = []
+  const bodies: Record<string, unknown>[] = []
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+    calls.push(url); bodies.push(JSON.parse(String(init.body)))
+    if (url === '/api/customers/quick') return response(201, { ...customer, id: 'real-customer' })
+    if (url === '/api/sales') return response(201, receipt)
+    throw new Error('Unexpected request')
+  }))
+  await syncSales('alice')
+  expect(calls).toEqual(['/api/customers/quick', '/api/sales'])
+  expect(bodies[1].customerId).toBe('real-customer')
+  expect((await localDrafts.outbox.get(key))?.status).toBe('SYNCED')
+  expect((await localDrafts.saleDrafts.get('alice'))?.draft.customer?.id).toBe('real-customer')
+})
+test('a lost customer creation response does not send the sale or create a new request ID', async () => {
+  const customer = await saveLocalCustomer('alice', crypto.randomUUID(), 'Offline customer', '')
+  const key = await enqueueSale('alice', { ...draft(), customer })
+  let fail = true
+  const ids: string[] = []
+  const fetcher = vi.fn(async (url: string, init: RequestInit) => {
+    if (url === '/api/customers/quick') {
+      ids.push(JSON.parse(String(init.body)).requestId)
+      if (fail) throw new TypeError('response lost')
+      return response(201, { ...customer, id: 'real-customer' })
+    }
+    if (url === '/api/sales') return response(201, receipt)
+    throw new Error('Unexpected request')
+  })
+  vi.stubGlobal('fetch', fetcher)
+  await syncSales('alice')
+  expect((await localDrafts.outbox.get(key))?.status).toBe('PENDING')
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  fail = false
+  await retrySale('alice', key); await syncSales('alice')
+  expect(ids).toHaveLength(2)
+  expect(ids[0]).toBe(ids[1])
+  expect((await localDrafts.outbox.get(key))?.status).toBe('SYNCED')
+})
+test('duplicate phone rejection lets the sale select the existing customer before retry', async () => {
+  const customer = await saveLocalCustomer('alice', crypto.randomUUID(), 'Duplicate customer', '0599876543')
+  const original = { ...draft(), customer }
+  const key = await enqueueSale('alice', original)
+  let saleBody = ''
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/customers/quick') return response(409, { errorCode: 'CUSTOMER_PHONE_EXISTS' })
+    saleBody = String(init?.body)
+    return response(201, receipt)
+  })
+  vi.stubGlobal('fetch', fetcher)
+  await syncSales('alice')
+  expect((await localDrafts.outbox.get(key))?.status).toBe('NEEDS_ATTENTION')
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  await editRejectedSale('alice', key)
+  const editable = (await localDrafts.saleDrafts.get('alice'))!.draft
+  await enqueueSale('alice', { ...editable, customer: { id: 'existing-customer', name: 'Existing customer', active: true, version: 0 } })
+  await syncSales('alice')
+  expect((await localDrafts.outbox.get(key))?.status).toBe('SYNCED')
+  expect(JSON.parse(saleBody).customerId).toBe('existing-customer')
 })
 test('old session response cannot expire a newly signed-in account', async () => {
   const key = await enqueueSale('alice', draft())

@@ -6,6 +6,8 @@ import { cachedReferencePage, offlineKinds } from '../offline/references'
 import { useAuth } from '../../auth/AuthProvider'
 import { useDebounced } from '../masterdata/useDebounced'
 import type { ReferenceRecord, ReferencePage } from '../masterdata/catalogs'
+import { localDrafts } from '../../db/masterDataDrafts'
+import { localCustomerRequestId } from '../offline/localCustomers'
 
 interface Props { kind: 'products' | 'suppliers' | 'payment-methods' | 'customers' | 'container-types' | 'expense-categories'; id: string; value: ReferenceRecord | null; disabled: boolean; activeOnly?: boolean; excludeWalkIn?: boolean; quickPick?: boolean; autoFocus?: boolean; combined?: boolean; onChange: (value: ReferenceRecord | null) => void }
 export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true, excludeWalkIn = false, quickPick = false, autoFocus = false, combined = false, onChange }: Props) {
@@ -19,7 +21,14 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
   const data = useQuery({ queryKey: ['purchase-reference', user!.id, kind, query, page, activeOnly, offline], networkMode: 'always',
     queryFn: async (): Promise<ReferencePage & { cached?: boolean; updatedAt?: number }> => {
       if ((offline || navigator.onLine === false) && activeOnly && offlineKinds.includes(kind)) return cachedReferencePage(user!.id, kind, query, page)
-      try { return await api<ReferencePage>(`/${kind}?activeOnly=${activeOnly}&q=${encodeURIComponent(query)}&page=${page}`) }
+      try {
+        const result = await api<ReferencePage>(`/${kind}?activeOnly=${activeOnly}&q=${encodeURIComponent(query)}&page=${page}`)
+        if (kind !== 'customers' || page !== 0) return result
+        const cached = await localDrafts.references.get(user!.id + ':customers')
+        const local = (cached?.records ?? []).filter(item => localCustomerRequestId(item.id) &&
+          [item.name, item.phone].some(value => value?.toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+        return { ...result, items: [...local, ...result.items] }
+      }
       catch (failure) {
         if (activeOnly && offlineKinds.includes(kind) && failure instanceof ApiError && (failure.status === 0 || failure.status >= 500)) return cachedReferencePage(user!.id, kind, query, page)
         throw failure
@@ -39,16 +48,17 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
     function select(record: ReferenceRecord | null) {
       onChange(record); setSearch(''); setPage(0); setHighlight(0); setOpen(false)
     }
-    return <div className="reference-selector customer-combobox">
+    return <div className="reference-selector customer-combobox" onBlur={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
+    }}>
       <label htmlFor={id}>{t('purchase.searchReference', { type: t('master.' + kind) })}</label>
       <input id={id} type="search" role="combobox" aria-autocomplete="list" aria-expanded={open && !disabled}
-        aria-controls={id + '-options'} aria-activedescendant={open && choices[highlight] ? id + '-option-' + highlight : undefined}
+        aria-controls={open ? id + '-options' : undefined} aria-activedescendant={open && choices.length ? id + '-option-' + highlight : undefined}
         autoComplete="off" maxLength={200} disabled={disabled} autoFocus={autoFocus}
         required={kind !== 'customers' || excludeWalkIn}
         placeholder={kind === 'customers' && !excludeWalkIn ? t('master.walkIn') : t('purchase.choose')}
         value={open ? search : value?.name ?? ''}
         onFocus={() => { setOpen(true); setSearch(''); setPage(0); setHighlight(0) }}
-        onBlur={() => setOpen(false)}
         onChange={event => { setSearch(event.target.value); setPage(0); setHighlight(0); if (value) onChange(null) }}
         onKeyDown={event => {
           if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); if (choices.length) setHighlight(index => Math.min(index + 1, choices.length - 1)) }
@@ -59,16 +69,17 @@ export function ReferenceSelector({ kind, id, value, disabled, activeOnly = true
       {open && !disabled && <div id={id + '-options'} role="listbox" className="customer-options">
         {choices.map((record, index) => <button type="button" role="option" id={id + '-option-' + index}
           aria-selected={highlight === index} key={record?.id ?? 'walk-in'}
-          onMouseDown={event => event.preventDefault()} onClick={() => select(record)}>
+          onPointerDown={event => event.preventDefault()} onClick={() => select(record)}>
           <span>{record?.name ?? t('master.walkIn')}</span>{(record?.phone || record?.code) && <small>{record.phone || record.code}</small>}
         </button>)}
         {!choices.length && !data.isFetching && <p>{t('master.empty')}</p>}
+        {!choices.length && data.isFetching && <p role="status">{t('master.loading')}</p>}
       </div>}
       {data.data?.cached && <p role="status">{t('offline.cached', { date: new Date(data.data.updatedAt!).toLocaleString() })}</p>}
       {data.error && <div role="alert">{t('errors.NETWORK_ERROR')} <button type="button" onClick={() => void data.refetch()}>{t('retry')}</button></div>}
       {open && (page > 0 || data.data?.hasMore) && <div className="reference-paging">
-        <button type="button" disabled={disabled || page === 0 || data.isFetching} onMouseDown={event => event.preventDefault()} onClick={() => { setPage(page - 1); setHighlight(0) }}>{t('auth.previous')}</button>
-        <button type="button" disabled={disabled || !data.data?.hasMore || data.isFetching} onMouseDown={event => event.preventDefault()} onClick={() => { setPage(page + 1); setHighlight(0) }}>{t('auth.next')}</button>
+        <button type="button" disabled={disabled || page === 0 || data.isFetching} onPointerDown={event => event.preventDefault()} onClick={() => { setPage(page - 1); setHighlight(0) }}>{t('auth.previous')}</button>
+        <button type="button" disabled={disabled || !data.data?.hasMore || data.isFetching} onPointerDown={event => event.preventDefault()} onClick={() => { setPage(page + 1); setHighlight(0) }}>{t('auth.next')}</button>
       </div>}
     </div>
   }

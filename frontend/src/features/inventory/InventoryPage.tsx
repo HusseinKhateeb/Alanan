@@ -8,6 +8,7 @@ import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import type { ReferenceRecord } from '../masterdata/catalogs'
 import type { Page } from '../purchases/types'
 import { HardDeleteControl } from '../cancellations/HardDeleteControl'
+import { businessToday } from '../../utils/businessDate'
 interface Stock { id: string; name: string; code: string; tracking_type: string; current_stock: string; current_wac?: string | null }
 interface Movement { id: string; movement_type: string; reference_type: string; quantity_change: string; unit_cost?: string; notes?: string; reference_id: string; invoice_number: string | null }
 export function InventoryPage() {
@@ -40,10 +41,7 @@ function OpeningStockForm() {
   const [quantity, setQuantity] = useState('')
   const [unitCost, setUnitCost] = useState('')
   const [reason, setReason] = useState('')
-  const [recordedDate, setRecordedDate] = useState(() => {
-    const now = new Date()
-    return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
-  })
+  const [recordedDate, setRecordedDate] = useState(businessToday)
   const [submitted, setSubmitted] = useState<object | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)

@@ -7,7 +7,7 @@ import { useAuth } from '../../auth/AuthProvider'
 import { ApiError } from '../../api/client'
 import { localDrafts } from '../../db/masterDataDrafts'
 import { refreshReferences } from './references'
-import { editRejectedSale, retrySale, syncSales } from './outbox'
+import { canEditRejectedSale, editRejectedSale, retrySale, syncSales } from './outbox'
 import type { QueuedSale } from './types'
 
 export function OfflineSales() {
@@ -76,7 +76,7 @@ export function OfflineSales() {
       {row.error && row.status !== 'SYNCED' && <p>{t('errors.' + row.error, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
       {row.receipt && <><p>{row.receipt.invoiceNumber} · {row.receipt.total} ₪</p>{row.receipt.negativeStock && <p>{t('sales.negativeStock')}</p>}<Link to={'/sales/' + row.receipt.id}>{t('purchase.view')}</Link></>}
       {['PENDING', 'NEEDS_ATTENTION'].includes(row.status) && <button onClick={() => void act(row)}>{t('retry')}</button>}
-      {row.status === 'NEEDS_ATTENTION' && [400, 403].includes(row.errorStatus ?? 0) && <button onClick={() => void act(row, true)}>{t('offline.edit')}</button>}
+      {canEditRejectedSale(row) && <button onClick={() => void act(row, true)}>{t('offline.edit')}</button>}
     </li>)}</ul>
   </details></aside>
 }

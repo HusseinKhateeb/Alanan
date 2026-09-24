@@ -90,9 +90,12 @@ function Editor({ userId }: { userId: string }) {
     </section> : draft && <><p>{t('payments.draftNotice')}</p>
       {draft.submitted && <p role="status">{t('payments.pendingRetry')}</p>}
       <form onSubmit={submit}><fieldset disabled={locked} className="purchase-header-fields">
-        <ReferenceSelector kind="suppliers" id="payment-supplier" value={draft.supplier} activeOnly={false} disabled={locked} onChange={supplier => update({ ...draft, supplier, allocations: [] })} />
+        <ReferenceSelector kind="suppliers" id="payment-supplier" value={draft.supplier} activeOnly={false} disabled={locked} combined onChange={supplier => {
+          update({ ...draft, supplier, allocations: [] })
+          if (supplier) requestAnimationFrame(() => document.getElementById('supplier-payment-amount')?.focus())
+        }} />
         <label>{t('payments.date')}<input required type="date" value={draft.paymentDate} onChange={event => update({ ...draft, paymentDate: event.target.value })} /></label>
-        <label>{t('payments.amount')} (₪)<input required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.amount} onChange={event => update({ ...draft, amount: event.target.value })} /></label>
+        <label>{t('payments.amount')} (₪)<input id="supplier-payment-amount" required inputMode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={draft.amount} onChange={event => update({ ...draft, amount: event.target.value })} /></label>
         <ReferenceSelector kind="payment-methods" id="payment-method" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />
         <label>{t('payments.mode')}<select value={draft.mode} onChange={event => update({ ...draft, mode: event.target.value as PaymentDraft['mode'] })}>
           <option value="AUTO">{t('payments.AUTO')}</option><option value="MANUAL">{t('payments.MANUAL')}</option>

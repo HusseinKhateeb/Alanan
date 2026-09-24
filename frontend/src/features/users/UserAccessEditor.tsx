@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../../api/client'
@@ -12,13 +12,11 @@ export function UserAccessEditor({ id, options, onClose, onRemoved }: {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const account = useQuery({ queryKey: ['user-access', id], queryFn: () => api<UserAccess>(`/users/${id}`), retry: false })
-  const [roles, setRoles] = useState<string[]>([])
-  const [permissions, setPermissions] = useState<string[]>([])
+  const [editing, setEditing] = useState<{ id: string; roles: string[]; permissions: string[] } | null>(null)
+  const roles = editing?.id === id ? editing.roles : account.data?.roles ?? []
+  const permissions = editing?.id === id ? editing.permissions : account.data?.permissions ?? []
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
-  useEffect(() => {
-    if (account.data) { setRoles(account.data.roles); setPermissions(account.data.permissions) }
-  }, [account.data])
   const save = useMutation({ mutationFn: () => api<UserAccess>(`/users/${id}/access`, {
     method: 'PUT', body: JSON.stringify({ roles, permissions })
   }), onSuccess: async () => {
@@ -39,8 +37,7 @@ export function UserAccessEditor({ id, options, onClose, onRemoved }: {
     save.mutate()
   }
   function changeRoles(next: string[]) {
-    setRoles(next)
-    setPermissions([...new Set(options.roles.filter(role => next.includes(role.name)).flatMap(role => role.permissions))])
+    setEditing({ id, roles: next, permissions: [...new Set(options.roles.filter(role => next.includes(role.name)).flatMap(role => role.permissions))] })
     setSaved(false)
   }
   function deleteAccount() {
@@ -55,7 +52,7 @@ export function UserAccessEditor({ id, options, onClose, onRemoved }: {
     {account.data && <form onSubmit={submit}>
       <p>{account.data.username}</p>
       <fieldset className="user-choice-group"><legend>{t('auth.roles')}</legend>{options.roles.map(role => <label className="checkbox" key={role.name}><input type="checkbox" checked={roles.includes(role.name)} onChange={event => changeRoles(event.target.checked ? [...roles, role.name] : roles.filter(value => value !== role.name))} />{t(`auth.role.${role.name}`, { defaultValue: role.name })}</label>)}</fieldset>
-      <fieldset className="user-choice-group"><legend>{t('auth.permissions')}</legend><p>{t('auth.permissionsHelp')}</p><div className="user-permissions">{options.permissions.map(permission => <label className="checkbox" key={permission.code}><input type="checkbox" checked={permissions.includes(permission.code)} onChange={event => { setPermissions(current => event.target.checked ? [...current, permission.code] : current.filter(code => code !== permission.code)); setSaved(false) }} />{t(`auth.permission.${permission.code}`, { defaultValue: permission.description || permission.code })}</label>)}</div></fieldset>
+      <fieldset className="user-choice-group"><legend>{t('auth.permissions')}</legend><p>{t('auth.permissionsHelp')}</p><div className="user-permissions">{options.permissions.map(permission => <label className="checkbox" key={permission.code}><input type="checkbox" checked={permissions.includes(permission.code)} onChange={event => { setEditing({ id, roles, permissions: event.target.checked ? [...permissions, permission.code] : permissions.filter(code => code !== permission.code) }); setSaved(false) }} />{t(`auth.permission.${permission.code}`, { defaultValue: permission.description || permission.code })}</label>)}</div></fieldset>
       {error && <p role="alert" className="error">{error}</p>}
       {saved && <p role="status">{t('auth.accessSaved')}</p>}
       <button className="primary-button" type="submit" disabled={save.isPending || remove.isPending}>{t('auth.saveAccess')}</button>

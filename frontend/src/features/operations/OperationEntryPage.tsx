@@ -87,11 +87,14 @@ function Editor({ userId, kind }: { userId: string; kind: OperationKind }) {
       {kind === 'waste' && productForm && !locked && <QuickWasteProductForm onClose={() => setProductForm(false)}
         onSelect={product => { update({ ...draft, reference: product }); setProductForm(false); void client.invalidateQueries({ queryKey: ['purchase-reference'] }) }} />}
       <form onSubmit={submit}><fieldset disabled={locked} className="purchase-header-fields">
-        <ReferenceSelector kind={kind === 'expenses' ? 'expense-categories' : 'products'} id={kind + '-reference'} value={draft.reference} disabled={locked} combined onChange={reference => update({ ...draft, reference })} />
+        <ReferenceSelector kind={kind === 'expenses' ? 'expense-categories' : 'products'} id={kind + '-reference'} value={draft.reference} disabled={locked} combined onChange={reference => {
+          update({ ...draft, reference })
+          if (reference) requestAnimationFrame(() => document.getElementById(kind + '-value')?.focus())
+        }} />
         {kind === 'expenses' && !offline && <button type="button" onClick={() => setCategoryForm(!categoryForm)}>{t('operations.newExpenseCategory')}</button>}
         {kind === 'waste' && !offline && <button type="button" onClick={() => setProductForm(!productForm)}>{t('operations.newWasteProduct')}</button>}
         <label>{t('operations.date')}<input required type="date" value={draft.date} onChange={event => update({ ...draft, date: event.target.value })} /></label>
-        <label>{t(kind === 'expenses' ? 'operations.amount' : piece ? 'sales.pieces' : 'sales.kg')}<input required inputMode="decimal" pattern={kind === 'expenses' ? '[0-9]+([.][0-9]{1,2})?' : piece ? '[0-9]+' : '[0-9]+([.][0-9]{1,3})?'} maxLength={kind === 'expenses' ? 19 : 16} value={draft.value} onChange={event => update({ ...draft, value: event.target.value })} /></label>
+        <label>{t(kind === 'expenses' ? 'operations.amount' : piece ? 'sales.pieces' : 'sales.kg')}<input id={kind + '-value'} required inputMode="decimal" pattern={kind === 'expenses' ? '[0-9]+([.][0-9]{1,2})?' : piece ? '[0-9]+' : '[0-9]+([.][0-9]{1,3})?'} maxLength={kind === 'expenses' ? 19 : 16} value={draft.value} onChange={event => update({ ...draft, value: event.target.value })} /></label>
         {kind === 'expenses' ? <ReferenceSelector kind="payment-methods" id="expense-method" value={draft.paymentMethod} disabled={locked} onChange={paymentMethod => update({ ...draft, paymentMethod })} />
           : <><label>{t('operations.reason')}<input required maxLength={500} value={draft.reason} onChange={event => update({ ...draft, reason: event.target.value })} /></label><p>{t('operations.stockHelp')}</p></>}
         <label>{t('master.notes')}<textarea maxLength={2000} value={draft.notes} onChange={event => update({ ...draft, notes: event.target.value })} /></label>
