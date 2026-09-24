@@ -10,6 +10,7 @@ export function QuickWasteProductForm({ onSelect, onClose }: { onSelect: (produc
   const [category, setCategory] = useState('SPICE')
   const [trackingType, setTrackingType] = useState('WEIGHT')
   const [price, setPrice] = useState('')
+  const [defaultCost, setDefaultCost] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   async function save(event: FormEvent) {
@@ -18,7 +19,7 @@ export function QuickWasteProductForm({ onSelect, onClose }: { onSelect: (produc
     setPending(true); setError(null)
     try {
       const product = await api<ReferenceRecord>('/products/quick-waste', {
-        method: 'POST', body: JSON.stringify({ name: name.trim(), code: code.trim(), category, trackingType, price }),
+        method: 'POST', body: JSON.stringify({ name: name.trim(), code: code.trim(), category, trackingType, price, defaultCost: defaultCost || null }),
       })
       onSelect(product)
     } catch (failure) { setError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
@@ -47,6 +48,9 @@ export function QuickWasteProductForm({ onSelect, onClose }: { onSelect: (produc
       <label htmlFor="quick-waste-price">{t('master.price')}<input id="quick-waste-price" required inputMode="decimal"
         pattern="[0-9]+([.][0-9]{1,2})?" maxLength={19} value={price} disabled={pending}
         onChange={event => setPrice(event.target.value)} /></label>
+      <label htmlFor="quick-waste-cost">{t('master.defaultCost')}<input id="quick-waste-cost" inputMode="decimal"
+        pattern="[0-9]+([.][0-9]{1,6})?" maxLength={19} value={defaultCost} disabled={pending}
+        onChange={event => setDefaultCost(event.target.value)} /></label>
       {error && <p role="alert" className="error">{t('errors.' + error.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
       <div className="form-actions"><button className="primary-button" disabled={pending || !name.trim() || !code.trim() || !price}>
         {t(pending ? 'master.saving' : 'operations.saveWasteProduct')}</button>

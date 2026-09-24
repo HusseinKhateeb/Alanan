@@ -32,7 +32,7 @@ public class MasterDataService {
             }
         }
         var customer=save(Catalog.CUSTOMERS, null,
-            new MasterDataInput(input.name(), null, null, null, null, input.phone(), null, null, true, null, 0L), user);
+            new MasterDataInput(input.name(), null, null, null, null, null, input.phone(), null, null, true, null, 0L), user);
         if(input.requestId()!=null) jdbc.update("INSERT INTO quick_customer_requests(user_id,request_id,request_hash,customer_id) VALUES (?,?,?,?)",
             user.id(),input.requestId(),hash,UUID.fromString((String)customer.get("id")));
         return customer;
@@ -42,14 +42,14 @@ public class MasterDataService {
     @PreAuthorize("hasAuthority('EXPENSES_CREATE')")
     public Map<String,Object> quickCreateExpenseCategory(QuickExpenseCategoryInput input, AuthUser user) {
         return save(Catalog.EXPENSES, null,
-            new MasterDataInput(input.name(), null, null, null, null, null, null, null, true, null, 0L), user);
+            new MasterDataInput(input.name(), null, null, null, null, null, null, null, null, true, null, 0L), user);
     }
 
     @Transactional
     @PreAuthorize("hasAuthority('INVENTORY_ADJUST')")
     public Map<String,Object> quickCreateWasteProduct(QuickWasteProductInput input, AuthUser user) {
         return save(Catalog.PRODUCTS, null,
-            new MasterDataInput(input.name(), input.code(), input.category(), input.trackingType(), input.price(), null, null, null, true, null, 0L), user);
+            new MasterDataInput(input.name(), input.code(), input.category(), input.trackingType(), input.price(), input.defaultCost(), null, null, null, true, null, 0L), user);
     }
 
     public Page list(Catalog catalog, String query, int page, boolean activeOnly, String phone, AuthUser user) {
@@ -79,7 +79,7 @@ public class MasterDataService {
             where += ")";
         }
         parameters.add((long) page * 50);
-        List<Map<String,Object>> rows = jdbc.queryForList("SELECT " + columns(catalog) + " FROM " + catalog.table + where
+        List<Map<String,Object>> rows = jdbc.queryForList("SELECT " + columns(catalog, user) + " FROM " + catalog.table + where
             + " ORDER BY lower(name), id LIMIT 51 OFFSET ?", parameters.toArray());
         boolean more = rows.size() > 50;
         return new Page(rows.stream().limit(50).map(row -> external(row)).toList(), more);
@@ -103,7 +103,7 @@ public class MasterDataService {
         Object id;
         try { id = catalog == Catalog.PAYMENTS ? Long.valueOf(rawId) : UUID.fromString(rawId); }
         catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND"); }
-        var rows=jdbc.queryForList("SELECT " + columns(catalog) + " FROM " + catalog.table + " WHERE id=?",id);
+        var rows=jdbc.queryForList("SELECT " + columns(catalog, user) + " FROM " + catalog.table + " WHERE id=?",id);
         if (rows.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
         return external(rows.getFirst());
     }
@@ -159,7 +159,7 @@ public class MasterDataService {
                 + ",version=version+1 WHERE id=?", args.toArray());
         }
         audit(catalog, id.toString(), user.id(), oldJson, snapshot(catalog, id));
-        return external(jdbc.queryForMap("SELECT " + columns(catalog) + " FROM " + catalog.table + " WHERE id=?", id));
+        return external(jdbc.queryForMap("SELECT " + columns(catalog, user) + " FROM " + catalog.table + " WHERE id=?", id));
     }
 
     private LinkedHashMap<String,Object> values(Catalog catalog, MasterDataInput in) {
@@ -174,6 +174,7 @@ public class MasterDataService {
                     || ("HONEY".equals(in.category()) && !"PIECE".equals(in.trackingType()))) fail("INVALID_TRACKING_TYPE");
                 values.put("code", in.code().strip()); values.put("category", in.category());
                 values.put("tracking_type", in.trackingType()); values.put("default_selling_price", in.price());
+                values.put("default_purchase_cost", in.defaultCost());
                 values.put("notes", blank(in.notes()));
             }
             case CUSTOMERS, SUPPLIERS -> {
@@ -202,11 +203,16 @@ public class MasterDataService {
             case EXPENSES -> "id,name,active,version";
         };
     }
+    private String columns(Catalog c, AuthUser user) {
+        String selected = columns(c);
+        return c == Catalog.PRODUCTS && (user.permissions().contains("COST_VIEW") || user.permissions().contains("SETTINGS_MANAGE"))
+            ? selected + ",default_purchase_cost" : selected;
+    }
     private Map<String,Object> external(Map<String,Object> row) {
         var result = new LinkedHashMap<>(row);
         // Decimal prices remain strings across the JSON boundary; no floating-point accounting.
-        for (String key : List.of("default_price", "default_selling_price")) {
-            if (result.containsKey(key)) result.put(key, result.get(key).toString());
+        for (String key : List.of("default_price", "default_selling_price", "default_purchase_cost")) {
+            if (result.get(key) != null) result.put(key, result.get(key).toString());
         }
         result.put("id", result.get("id").toString());
         return result;

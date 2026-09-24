@@ -60,7 +60,7 @@ function CatalogPage({ catalog }: { catalog: Catalog }) {
     {archiveError && <p role="alert" className="error">{t('errors.' + archiveError.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {editor && manage && <ReferenceForm key={editor === 'new' ? 'new' : editor.id} catalog={catalog}
       record={editor === 'new' ? undefined : editor} onClose={() => { setEditor(null); void queryClient.invalidateQueries({ queryKey: ['master'] }) }} onSelect={setEditor}
-      onSaved={() => { setEditor(null); setSaved(true); void queryClient.invalidateQueries({ queryKey: ['master'] }); void queryClient.invalidateQueries({ queryKey: ['customer-phone'] }) }} />}
+      onSaved={() => { setEditor(null); setSaved(true); void queryClient.invalidateQueries({ queryKey: ['master'] }); void queryClient.invalidateQueries({ queryKey: ['purchase-reference'] }); void queryClient.invalidateQueries({ queryKey: ['customer-phone'] }) }} />}
     {records.isPending && <p role="status">{t('master.loading')}</p>}
     {records.error && <p role="alert">{t('errors.' + (records.error instanceof ApiError ? records.error.code : 'SERVER_ERROR'), { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {records.data?.items.length === 0 && <p>{t('master.empty')}</p>}
@@ -68,6 +68,7 @@ function CatalogPage({ catalog }: { catalog: Catalog }) {
       <div><strong>{record.is_walk_in ? t('master.walkIn') : record.name}</strong>
         {record.code && <span>{record.code}</span>}
         {record.phone && <span dir="ltr">{record.phone}</span>}
+        {catalog === 'products' && record.default_purchase_cost && <span>{t('master.defaultCost')}: {record.default_purchase_cost} ₪</span>}
         {(record.default_price || record.default_selling_price) && <span>{record.default_price ?? record.default_selling_price} ₪ {catalog === 'products' ? t(record.tracking_type === 'WEIGHT' ? 'master.perKg' : 'master.perPiece') : ''}</span>}
         <small>{t(record.active ? 'auth.active' : 'auth.inactive')}{record.is_default ? ' · ' + t('master.isDefault') : ''}</small>
       </div>

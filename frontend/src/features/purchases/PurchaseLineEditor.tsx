@@ -10,7 +10,7 @@ export function PurchaseLineEditor({ item, index, disabled, canRemove, onChange,
   return <fieldset className="purchase-line" disabled={disabled}>
     <legend>{t('purchase.line', { number: index + 1 })}</legend>
     <ReferenceSelector kind="products" id={'product-' + item.localId} value={item.product} disabled={disabled} onChange={product => {
-      onChange({ ...item, product })
+      onChange({ ...item, product, unitCost: product?.default_purchase_cost ?? '' })
       if (product) requestAnimationFrame(() => document.getElementById('purchase-quantity-' + item.localId)?.focus())
     }} />
     <div className="purchase-line-numbers">

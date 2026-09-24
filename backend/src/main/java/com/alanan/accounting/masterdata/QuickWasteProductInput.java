@@ -8,5 +8,6 @@ public record QuickWasteProductInput(
     @NotBlank @Size(max=60) String code,
     @NotBlank String category,
     @NotBlank String trackingType,
-    @NotNull @DecimalMin(value="0", inclusive=false) @Digits(integer=16, fraction=2) BigDecimal price
+    @NotNull @DecimalMin(value="0", inclusive=false) @Digits(integer=16, fraction=2) BigDecimal price,
+    @DecimalMin(value="0", inclusive=false) @Digits(integer=12, fraction=6) BigDecimal defaultCost
 ) {}

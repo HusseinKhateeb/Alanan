@@ -99,6 +99,8 @@
     "category": "Category",
     "trackingType": "Unit",
     "price": "Default selling price (₪ per unit)",
+    "defaultCost": "Default purchase cost (₪ per unit, optional)",
+    "defaultCostHelp": "Prefills new purchase lines. Changing it does not recalculate existing stock or profit.",
     "phone": "Phone (optional)",
     "address": "Address (optional)",
     "notes": "Notes (optional)",

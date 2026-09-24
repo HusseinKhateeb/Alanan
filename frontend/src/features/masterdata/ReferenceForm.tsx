@@ -23,11 +23,11 @@ export function ReferenceForm({ catalog, record, onSaved, onClose, onSelect }: P
   useEffect(() => {
     let current = true
     localDrafts.masterDataDrafts.get(key).then(draft => {
-      if (current && draft) { setInput(draft.input); setRestored(true) }
+      if (current && draft) { setInput({ ...initialInput(record), ...draft.input, defaultCost: draft.input.defaultCost ?? '' }); setRestored(true) }
     }).catch(() => { if (current) setDraftWarning(true) })
       .finally(() => { if (current) setLoaded(true) })
     return () => { current = false }
-  }, [key])
+  }, [key, record])
   const phone = useDebounced(input.phone)
   const matches = useQuery({ queryKey: ['customer-phone', user?.id, phone],
     queryFn: () => api<ReferencePage>(`/customers?phone=${encodeURIComponent(phone)}`),
@@ -53,13 +53,13 @@ export function ReferenceForm({ catalog, record, onSaved, onClose, onSelect }: P
     } catch (failure) { setError(failure instanceof ApiError ? failure : new ApiError('SERVER_ERROR')) }
     finally { setPending(false) }
   }
-  function field(name: 'name' | 'code' | 'phone' | 'address' | 'notes' | 'price', required = false) {
+  function field(name: 'name' | 'code' | 'phone' | 'address' | 'notes' | 'price' | 'defaultCost', required = false) {
     const id = 'reference-' + name
     return <div className="form-field"><label htmlFor={id}>{t('master.' + name)}</label>
       <input id={id} value={input[name]} required={required} disabled={!loaded || pending}
-        maxLength={name === 'notes' ? 2000 : name === 'address' ? 500 : name === 'phone' || name === 'code' ? 60 : name === 'price' ? 19 : 200}
-        inputMode={name === 'price' ? 'decimal' : name === 'phone' ? 'tel' : 'text'}
-        pattern={name === 'price' ? '[0-9]+([.][0-9]{1,2})?' : undefined}
+        maxLength={name === 'notes' ? 2000 : name === 'address' ? 500 : name === 'phone' || name === 'code' ? 60 : name === 'price' || name === 'defaultCost' ? 19 : 200}
+        inputMode={name === 'price' || name === 'defaultCost' ? 'decimal' : name === 'phone' ? 'tel' : 'text'}
+        pattern={name === 'price' ? '[0-9]+([.][0-9]{1,2})?' : name === 'defaultCost' ? '[0-9]+([.][0-9]{1,6})?' : undefined}
         aria-invalid={!!error?.fieldErrors[name]} aria-describedby={error?.fieldErrors[name] ? id + '-error' : undefined}
         onChange={event => change(name, event.target.value)} />
       {error?.fieldErrors[name] && <span id={id + '-error'} className="field-error">{t('errors.INVALID_FIELD')}</span>}
@@ -83,6 +83,7 @@ export function ReferenceForm({ catalog, record, onSaved, onClose, onSelect }: P
         </select>
       </>}
       {(catalog === 'products' || catalog === 'container-types') && field('price', true)}
+      {catalog === 'products' && <>{field('defaultCost')}<p className="field-hint">{t('master.defaultCostHelp')}</p></>}
       {(catalog === 'customers' || catalog === 'suppliers') && <>{field('phone')}{field('address')}</>}
       {!['payment-methods', 'expense-categories'].includes(catalog) && field('notes')}
       {existing && <aside className="duplicate" role="status">

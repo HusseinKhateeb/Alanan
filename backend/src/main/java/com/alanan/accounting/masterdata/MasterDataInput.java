@@ -9,6 +9,7 @@ public record MasterDataInput(
     @Size(max=10) String category,
     @Size(max=10) String trackingType,
     @DecimalMin(value="0.00", inclusive=false) @Digits(integer=16, fraction=2) BigDecimal price,
+    @DecimalMin(value="0", inclusive=false) @Digits(integer=12, fraction=6) BigDecimal defaultCost,
     @Size(max=60) String phone,
     @Size(max=500) String address,
     @Size(max=2000) String notes,
