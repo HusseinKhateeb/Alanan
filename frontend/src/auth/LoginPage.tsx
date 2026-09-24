@@ -20,6 +20,7 @@ export function LoginPage() {
   }
   return <main className="login-page">
     <section className="login-card" aria-labelledby="login-title">
+      <img className="login-logo" src="/icon-192.png" alt="" width="112" height="112" />
       <div className="eyebrow">{t('brand')}</div>
       <h1 id="login-title">{t('auth.loginTitle')}</h1>
       <p>{t('auth.loginIntro')}</p>

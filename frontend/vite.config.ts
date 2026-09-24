@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [react(), VitePWA({
     registerType: 'prompt',
-    includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+    includeAssets: ['favicon-64.png', 'apple-touch-icon.png'],
     manifest: {
       name: 'Al Anan Roastery | محمص العنان',
       short_name: 'Alanan',
@@ -23,7 +23,8 @@ export default defineConfig(({ mode }) => {
       background_color: '#fbf3e6',
       icons: [
         { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     },
     workbox: {

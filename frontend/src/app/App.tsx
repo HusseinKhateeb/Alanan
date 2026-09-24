@@ -96,7 +96,7 @@ function AuthenticatedApp() {
   const { user, offline } = useAuth()
   return <>
     <header className="header"><Link className="brand" to="/">
-      <img src="/icon.svg" alt="" width="44" height="44" />
+      <img src="/icon-192.png" alt="" width="44" height="44" />
       <span><strong>{t('brand')}</strong><small>{t('subtitle')}</small></span>
     </Link><AccountControls /></header>
     {user && offline ? <Routes><Route path="/account" element={<AccountPage />} /><Route path="/sales/new" element={<NewSalePage />} /><Route path="*" element={<OfflineWorkspace />} /></Routes>
