@@ -159,6 +159,15 @@ class AuthenticationIntegrationTest {
             .contentType("application/json").content(body.replace("Generated product", "Renamed product")))
             .andExpect(status().isOk()).andExpect(jsonPath("code").value(code));
     }
+    @Test void productSearchMatchesLaterWordsAndSubstrings() throws Exception {
+        String token = ownerToken();
+        String marker = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        var product = createReference("products", "{\"name\":\"Roasted Cardamom" + marker + " Blend\",\"code\":\"SKU-" + marker + "\",\"category\":\"SPICE\",\"trackingType\":\"WEIGHT\",\"price\":\"12.00\",\"active\":true,\"version\":0}", token);
+        for (String term : new String[]{"cardamom" + marker.substring(0, 4), marker.substring(4, 9), "sku-" + marker.substring(0, 4)}) {
+            mvc.perform(get("/api/products").param("q", term).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("items[0].id").value(product.get("id").asText()));
+        }
+    }
     @Test void phoneLookupFindsDuplicatesAndWalkInIsProtected() throws Exception {
         String token = ownerToken();
         String phone = "0599" + String.format("%06d", new java.security.SecureRandom().nextInt(1000000));

@@ -64,10 +64,12 @@ public class MasterDataService {
             parameters.add(PhoneNormalizer.normalize(phone));
         }
         if (!query.isBlank()) {
-            String prefix = query.strip().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            String term = query.strip().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+            String prefix = term + "%";
+            String productMatch = "%" + term + "%";
             where += " AND (lower(name) LIKE ?";
-            parameters.add(prefix);
-            if (catalog == Catalog.PRODUCTS) { where += " OR lower(code) LIKE ?"; parameters.add(prefix); }
+            parameters.add(catalog == Catalog.PRODUCTS ? productMatch : prefix);
+            if (catalog == Catalog.PRODUCTS) { where += " OR lower(code) LIKE ?"; parameters.add(productMatch); }
             if (catalog == Catalog.CUSTOMERS) {
                 String digits = query.replaceAll("[^0-9٠-٩۰-۹]", "");
                 if (!digits.isEmpty()) {
