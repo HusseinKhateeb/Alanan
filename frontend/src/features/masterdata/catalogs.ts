@@ -1,3 +1,5 @@
+import { formatUnitCost } from '../../utils/formatUnitCost'
+
 export const catalogs = ['products', 'customers', 'suppliers', 'container-types', 'payment-methods', 'expense-categories'] as const
 export type Catalog = typeof catalogs[number]
 export interface ReferenceRecord {
@@ -14,7 +16,7 @@ export interface ReferenceInput {
 export function initialInput(record?: ReferenceRecord): ReferenceInput {
   return { name: record?.name ?? '', code: record?.code ?? '', category: record?.category ?? 'SPICE',
     trackingType: record?.tracking_type ?? 'WEIGHT', price: record?.default_selling_price ?? record?.default_price ?? '',
-    defaultCost: record?.default_purchase_cost ?? '',
+    defaultCost: record?.default_purchase_cost ? formatUnitCost(record.default_purchase_cost) : '',
     phone: record?.phone ?? '', address: record?.address ?? '', notes: record?.notes ?? '',
     active: record?.active ?? true, isDefault: record?.is_default ?? false, version: record?.version ?? 0 }
 }

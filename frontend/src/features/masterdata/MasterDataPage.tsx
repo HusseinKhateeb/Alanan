@@ -7,6 +7,7 @@ import { api, ApiError } from '../../api/client'
 import { catalogs, canRead, initialInput, payload, type Catalog, type ReferencePage, type ReferenceRecord } from './catalogs'
 import { ReferenceForm } from './ReferenceForm'
 import { useDebounced } from './useDebounced'
+import { formatUnitCost } from '../../utils/formatUnitCost'
 
 export function MasterDataPage() {
   const { catalog } = useParams()
@@ -68,7 +69,7 @@ function CatalogPage({ catalog }: { catalog: Catalog }) {
       <div><strong>{record.is_walk_in ? t('master.walkIn') : record.name}</strong>
         {record.code && <span>{record.code}</span>}
         {record.phone && <span dir="ltr">{record.phone}</span>}
-        {catalog === 'products' && record.default_purchase_cost && <span>{t('master.defaultCost')}: {record.default_purchase_cost} ₪</span>}
+        {catalog === 'products' && record.default_purchase_cost && <span>{t('master.defaultCost')}: {formatUnitCost(record.default_purchase_cost)} ₪</span>}
         {(record.default_price || record.default_selling_price) && <span>{record.default_price ?? record.default_selling_price} ₪ {catalog === 'products' ? t(record.tracking_type === 'WEIGHT' ? 'master.perKg' : 'master.perPiece') : ''}</span>}
         <small>{t(record.active ? 'auth.active' : 'auth.inactive')}{record.is_default ? ' · ' + t('master.isDefault') : ''}</small>
       </div>
