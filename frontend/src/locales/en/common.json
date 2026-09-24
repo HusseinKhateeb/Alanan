@@ -170,6 +170,13 @@
     "confirm": "Confirm cancellation"
   },
   "errors": {
+    "BACKUP_INVALID": "This is not a valid PostgreSQL custom-format backup, or it exceeds the 512 MB limit.",
+    "BACKUP_SCHEMA_INVALID": "The backup does not contain the required Alanan tables.",
+    "BACKUP_CHECKSUM_INVALID": "The SHA-256 checksum is invalid or does not match the file.",
+    "BACKUP_EXPORT_FAILED": "Could not create the backup. Check the server's PostgreSQL tools and database connection.",
+    "BACKUP_UPLOAD_FAILED": "Could not store or verify the backup on the server.",
+    "BACKUP_DELETE_FAILED": "Could not remove the staged file.",
+    "BACKUP_CONFIG_INVALID": "The server backup connection is not configured correctly.",
     "INVOICE_YEAR_LOCKED": "The invoice date must stay in its numbered year.",
     "PURCHASE_LINES_LOCKED": "Product lines cannot be added, removed or replaced in a correction.",
     "EXPORT_TOO_LARGE": "This report has more than 10,000 rows. Narrow the date range and export again.",
@@ -456,6 +463,7 @@
     "profitNote": "Profit uses product lines with known cost. Anonymous spice-container revenue and unknown product cost are excluded from exact profit."
   },
   "audit": {
+    "BACKUP": "Backup",
     "title": "Audit history",
     "entity": "Record type",
     "all": "All types",
@@ -476,6 +484,26 @@
     "CONTAINERS": "Container types",
     "PAYMENTS": "Payment methods",
     "EXPENSES": "Expense categories"
+  },
+  "backup": {
+    "title": "Backups",
+    "help": "Only admins can manage backup files. Uploaded files are checked and staged here; uploading never replaces the live database. Keep a downloaded copy off this computer.",
+    "create": "Create a backup",
+    "createAndDownload": "Create and download backup",
+    "upload": "Upload a backup",
+    "uploadHelp": "Choose a PostgreSQL custom-format .dump file (up to 512 MB). The app checks its format and required tables, then stores it separately. This is not a full restore test.",
+    "file": "Backup file",
+    "expectedHash": "Expected SHA-256 (optional)",
+    "verifyAndStage": "Verify and stage",
+    "stagedList": "Staged backups",
+    "EXPORT": "Created here",
+    "UPLOAD": "Uploaded",
+    "download": "Download",
+    "checksum": "Download checksum",
+    "remove": "Remove staged file",
+    "removeConfirm": "Remove this staged backup file? Keep another copy before continuing.",
+    "exported": "Backup created and downloaded. Store a copy off this computer.",
+    "staged": "Backup verified and staged. The live database was not changed."
   },
   "hardDelete": {
     "title": "Permanently remove record",

@@ -16,7 +16,7 @@ export function DashboardOverview() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const dashboard = useQuery({ queryKey: ['dashboard', user?.id], enabled: !!user,
-    queryFn: () => api<Overview>('/dashboard'), retry: false, refetchInterval: 60_000 })
+    queryFn: () => api<Overview>('/dashboard'), retry: false })
   const data = dashboard.data
   const cards: { key: keyof Overview; to?: string }[] = [
     { key: 'salesToday', to: '/sales' }, { key: 'salesMonth', to: '/sales' },

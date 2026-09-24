@@ -18,7 +18,7 @@ export function AuditPage() {
   return <main><Link to="/">{t('home')}</Link><h1>{t('audit.title')}</h1>
     <fieldset className="purchase-header-fields"><legend>{t('operations.filters')}</legend>
       <label>{t('audit.entity')}<select value={type} onChange={event => { setType(event.target.value); setPage(0) }}>
-        <option value="">{t('audit.all')}</option>{['PURCHASE','SALE','SUPPLIER_PAYMENT','CUSTOMER_PAYMENT','EXPENSE','WASTE','INVENTORY_ADJUSTMENT','AUTH','PRODUCTS','CUSTOMERS','SUPPLIERS','CONTAINERS','PAYMENTS','EXPENSES'].map(value => <option key={value} value={value}>{t('audit.' + value)}</option>)}
+        <option value="">{t('audit.all')}</option>{['PURCHASE','SALE','SUPPLIER_PAYMENT','CUSTOMER_PAYMENT','EXPENSE','WASTE','INVENTORY_ADJUSTMENT','BACKUP','AUTH','PRODUCTS','CUSTOMERS','SUPPLIERS','CONTAINERS','PAYMENTS','EXPENSES'].map(value => <option key={value} value={value}>{t('audit.' + value)}</option>)}
       </select></label>
       <label>{t('operations.from')}<input type="date" value={from} onChange={event => { setFrom(event.target.value); setPage(0) }} /></label>
       <label>{t('operations.to')}<input type="date" value={to} onChange={event => { setTo(event.target.value); setPage(0) }} /></label>

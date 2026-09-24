@@ -38,6 +38,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/api/purchases", "/api/purchases/*", "/api/purchases/*/cancel", "/api/purchases/*/pdf", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements", "/api/inventory/adjustments").authenticated()
                 .requestMatchers("/api/expenses", "/api/expenses/*", "/api/expenses/*/cancel", "/api/waste", "/api/waste/*").authenticated()
                 .requestMatchers("/api/audit").authenticated()
+                .requestMatchers("/api/backups", "/api/backups/*", "/api/backups/*/download", "/api/backups/*/checksum", "/api/backups/exports").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.DELETE,"/api/admin/deletions/*/*").authenticated()
                 .requestMatchers("/api/dashboard").authenticated()
                 .requestMatchers("/api/reports/*", "/api/reports/*/csv").authenticated()

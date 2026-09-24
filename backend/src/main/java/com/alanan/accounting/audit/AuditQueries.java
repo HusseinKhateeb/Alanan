@@ -23,6 +23,7 @@ public class AuditQueries {
         UNION ALL SELECT id,'WASTE',waste_id::text,action,user_id,created_at,NULL,new_values::text FROM waste_audit
         UNION ALL SELECT id,'INVENTORY_ADJUSTMENT',adjustment_id::text,action,user_id,created_at,NULL,new_values::text FROM inventory_adjustment_audit
         UNION ALL SELECT id,entity_type,entity_id::text,'HARD_DELETE',deleted_by,created_at,NULL,snapshot::text FROM hard_deletion_audit
+        UNION ALL SELECT id,'BACKUP',archive_id::text,action,user_id,created_at,NULL,details::text FROM backup_events
         UNION ALL SELECT id,'AUTH',COALESCE(user_id::text,''),action,user_id,created_at,NULL,NULL FROM auth_events
         UNION ALL SELECT id,'USER',target_user_id::text,action,user_id,created_at,NULL,new_values::text FROM user_audit
         """;

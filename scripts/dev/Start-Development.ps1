@@ -25,6 +25,16 @@ try {
             [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
         }
     }
+    # Neon's transaction pooler discards session search_path settings between queries.
+    # This application uses a small Hikari pool and needs a direct session connection.
+    if ($env:DB_URL -match '(?i)^jdbc:postgresql://ep-[a-z0-9-]+-pooler\..*\.neon\.tech(?::\d+)?/') {
+        $env:DB_URL = $env:DB_URL -replace '(?i)(^jdbc:postgresql://ep-[a-z0-9-]+)-pooler(\.)', '$1$2'
+        Write-Host 'Using the direct Neon endpoint for persistent database sessions.'
+    }
+    if ($env:DB_HOST -match '(?i)^ep-[a-z0-9-]+-pooler\..*\.neon\.tech$') {
+        $env:DB_HOST = $env:DB_HOST -replace '(?i)(^ep-[a-z0-9-]+)-pooler(\.)', '$1$2'
+        Write-Host 'Using the direct Neon endpoint for persistent database sessions.'
+    }
     if ([string]::IsNullOrWhiteSpace($env:DB_PASSWORD) -or $env:DB_PASSWORD.StartsWith('REPLACE_') -or
         [string]::IsNullOrWhiteSpace($env:JWT_SECRET) -or $env:JWT_SECRET.StartsWith('REPLACE_')) {
         throw 'Set DB_PASSWORD and JWT_SECRET in the existing root .env. This script never overwrites existing configuration.'

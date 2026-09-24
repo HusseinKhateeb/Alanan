@@ -1,4 +1,8 @@
 app:
+  backup:
+    staging-directory: ${BACKUP_STAGING_DIRECTORY:./backups/staged}
+    pg-dump: ${PG_DUMP_COMMAND:pg_dump}
+    pg-restore: ${PG_RESTORE_COMMAND:pg_restore}
   auth:
     jwt-secret: ${JWT_SECRET}
   bootstrap:
@@ -6,18 +10,29 @@ app:
     username: ${BOOTSTRAP_ADMIN_USERNAME:}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 spring:
+  servlet:
+    multipart:
+      max-file-size: 512MB
+      max-request-size: 513MB
   application:
     name: alanan-accounting
   datasource:
     url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:alanan}}
     username: ${DB_USERNAME:alanan_app}
     password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 60000
+      data-source-properties:
+        currentSchema: public
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
   flyway:
     enabled: true
+    default-schema: public
 server:
   error:
     include-message: never

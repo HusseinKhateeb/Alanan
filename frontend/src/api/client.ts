@@ -53,10 +53,23 @@ export async function downloadCsv(path: string, filename: string): Promise<void>
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+export async function downloadBackup(path: string, filename: string): Promise<void> {
+  const response = await request(path, { signal: AbortSignal.timeout(600_000) })
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 async function request(path: string, options: RequestInit = {}): Promise<Response> {
   const requestToken = accessToken
   const headers = new Headers(options.headers)
-  if (options.body) headers.set('Content-Type', 'application/json')
+  if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   if (requestToken && path !== '/auth/refresh' && path !== '/auth/login') headers.set('Authorization', `Bearer ${requestToken}`)
   const sessionEndpoint = path === '/auth/login' || path === '/auth/refresh' || path === '/auth/logout'
   if (path === '/auth/refresh') headers.set('X-Alanan-Session', 'refresh')

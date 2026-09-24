@@ -76,6 +76,8 @@
 
 This is not a completed V1 release. Automatic synchronization for non-sales workflows remains open. A daily offsite backup installer and disposable restore drill are available, but no real backup schedule is installed until an offsite destination is configured. Sales and purchase invoice PDFs and bounded full-period report CSV exports are available. Purchase corrections are guarded to invoices without later stock movements; full historical revaluation, user editing/deactivation and password recovery remain pending. See the requirement-by-requirement [v6 specification review](specification-review.md).
 
+Admins can export and download a PostgreSQL custom backup in the app, and upload a backup for checksum/format/table verification and separate staging. This does not apply an upload to the live database or prove a full restore; the disposable restore drill and offsite schedule remain separate tasks.
+
 ## Implemented: read-only audit history
 
 - An `AUDIT_VIEW`-protected API and bilingual screen combine existing master-data, invoice, payment, expense, waste and authentication events.

@@ -32,12 +32,13 @@ const PurchaseListPage = lazy(() => import('../features/purchases/PurchaseListPa
 const PurchaseDetailPage = lazy(() => import('../features/purchases/PurchaseDetailPage').then(m => ({ default: m.PurchaseDetailPage })))
 const SupplierBalancesPage = lazy(() => import('../features/suppliers/SupplierBalancesPage').then(m => ({ default: m.SupplierBalancesPage })))
 const InventoryPage = lazy(() => import('../features/inventory/InventoryPage').then(m => ({ default: m.InventoryPage })))
+const BackupPage = lazy(() => import('../features/backup/BackupPage').then(m => ({ default: m.BackupPage })))
 
 function Workspace() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const health = useQuery({ queryKey: ['backend-health'], queryFn: checkBackend,
-    refetchInterval: 60_000, retry: false })
+    retry: false })
   return <main id="main">
     <div className="workspace-hero"><div><div className="eyebrow">{t('workspace')}</div>
     <h1>{t('welcome')}</h1><p className="intro">{t('intro')}</p></div>
@@ -70,6 +71,7 @@ function Workspace() {
         <Link key={kind} to={'/master/' + kind}>{t('master.' + kind)}</Link>)}
         {user?.permissions.includes('USERS_MANAGE') && <Link to="/users">{t('auth.users')}</Link>}
         {user?.permissions.includes('AUDIT_VIEW') && <Link to="/audit">{t('audit.title')}</Link>}
+        {user?.roles.includes('ADMIN') && <Link to="/backups">{t('backup.title')}</Link>}
       </nav></details>
     <footer><button className="text-button" disabled={health.isFetching} onClick={() => void health.refetch()}>{t('retry')}</button></footer>
   </main>
@@ -100,6 +102,7 @@ function AuthenticatedApp() {
     : user ? <Suspense fallback={<main role="status">{t('master.loading')}</main>}><Routes>
       <Route path="/reports/:kind" element={<ReportPage />} />
       <Route path="/audit" element={<AuditPage />} />
+      <Route path="/backups" element={<BackupPage />} />
       <Route path="/expenses" element={<OperationHistoryPage kind="expenses" />} /><Route path="/expenses/new" element={<OperationEntryPage kind="expenses" />} />
       <Route path="/waste" element={<OperationHistoryPage kind="waste" />} /><Route path="/waste/new" element={<OperationEntryPage kind="waste" />} />
       <Route path="/customer-payments/new" element={<NewCustomerPaymentPage />} /><Route path="/customer-payments" element={<CustomerPaymentHistoryPage />} /><Route path="/customer-payments/:id" element={<CustomerPaymentDetailPage />} />

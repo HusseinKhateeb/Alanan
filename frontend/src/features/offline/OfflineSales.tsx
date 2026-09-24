@@ -44,10 +44,11 @@ export function OfflineSales() {
     }
     const online = () => { void run(); void cache() }
     const interval = window.setInterval(() => void run(), 10_000)
-    const cacheInterval = window.setInterval(() => void cache(), 300_000)
+    const visible = () => { if (document.visibilityState === 'visible') void cache() }
     window.addEventListener('online', online)
+    document.addEventListener('visibilitychange', visible)
     online()
-    return () => { current = false; subscription.unsubscribe(); window.clearInterval(interval); window.clearInterval(cacheInterval); window.removeEventListener('online', online) }
+    return () => { current = false; subscription.unsubscribe(); window.clearInterval(interval); window.removeEventListener('online', online); document.removeEventListener('visibilitychange', visible) }
   }, [user, allowed, offline, client])
   if (!user || !allowed) return null
   async function refresh() {
