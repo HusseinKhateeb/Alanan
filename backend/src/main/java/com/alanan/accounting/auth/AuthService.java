@@ -45,7 +45,7 @@ public class AuthService {
 
     @Transactional
     public void changePassword(UUID id, String currentPassword, String newPassword) {
-        if (newPassword.length() < 14 || newPassword.getBytes(StandardCharsets.UTF_8).length > 72)
+        if (newPassword.length() < 6 || newPassword.getBytes(StandardCharsets.UTF_8).length > 72)
             throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_POLICY");
         var hashes = jdbc.queryForList("SELECT password_hash FROM users WHERE id=? AND active FOR UPDATE", String.class, id);
         if (hashes.isEmpty() || !passwords.matches(currentPassword, hashes.getFirst()))

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { StrictMode } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from '../app/i18n'
@@ -179,6 +179,36 @@ test('admin creates an account with a role and individual permission changes', a
   const body = JSON.parse(call?.[1].body as string)
   expect(body).toMatchObject({ username: 'clerk', displayName: 'Clerk', roles: ['EMPLOYEE'], permissions: ['SALES_CREATE', 'COST_VIEW'] })
   expect(screen.getByLabelText('New password')).toHaveValue('')
+})
+
+test('admin edits another user’s permissions and removes the account', async () => {
+  const base = authenticatedFetch()
+  let removed = false
+  const fetch = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/users/options')) return response({ roles: [{ name: 'EMPLOYEE', permissions: ['SALES_CREATE'] }], permissions: [
+      { code: 'SALES_CREATE', description: 'Create sales' }, { code: 'COST_VIEW', description: 'View cost' }
+    ] })
+    if (url.endsWith('/users?page=0')) return response(removed ? [] : [{ id: 'user-2', username: 'clerk', displayName: 'Clerk', active: true, roles: ['EMPLOYEE'] }])
+    if (url.endsWith('/users/user-2') && options?.method === 'DELETE') { removed = true; return response(null, 204) }
+    if (url.endsWith('/users/user-2/access') && options?.method === 'PUT') return response({ id: 'user-2', username: 'clerk', displayName: 'Clerk', active: true, roles: ['EMPLOYEE'], permissions: ['COST_VIEW'] })
+    if (url.endsWith('/users/user-2')) return response({ id: 'user-2', username: 'clerk', displayName: 'Clerk', active: true, roles: ['EMPLOYEE'], permissions: ['SALES_CREATE'] })
+    return base(url)
+  })
+  vi.stubGlobal('fetch', fetch)
+  vi.stubGlobal('confirm', vi.fn(() => true))
+  mount('/users'); await submit()
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit access' }))
+  await screen.findByRole('heading', { name: 'Edit access: Clerk' })
+  const editor = screen.getByRole('region', { name: 'Edit access: Clerk' })
+  fireEvent.click(within(editor).getByLabelText('Create sales'))
+  fireEvent.click(within(editor).getByLabelText('View cost and profit'))
+  fireEvent.click(screen.getByRole('button', { name: 'Save roles and permissions' }))
+  await screen.findByText('Access updated. This user\'s other sessions were signed out.')
+  const update = (fetch.mock.calls as unknown as [string, RequestInit][]).find(([url, options]) => url.endsWith('/users/user-2/access') && options?.method === 'PUT')
+  expect(JSON.parse(update?.[1].body as string)).toEqual({ roles: ['EMPLOYEE'], permissions: ['COST_VIEW'] })
+  fireEvent.click(screen.getByRole('button', { name: 'Delete user' }))
+  await screen.findByText('User account deleted.')
+  expect(removed).toBe(true)
 })
 
 test('user-management permission alone does not show account creation', async () => {

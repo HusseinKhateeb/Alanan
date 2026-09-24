@@ -17,6 +17,7 @@ public class UserDirectory {
             SELECT u.id,u.username,u.display_name,u.active,
                    COALESCE(string_agg(r.name,',' ORDER BY r.name),'') role_names
             FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
+            WHERE u.deleted_at IS NULL
             GROUP BY u.id ORDER BY u.username,u.id LIMIT 50 OFFSET ?
             """, (rs, row) -> new UserSummary(rs.getObject("id", UUID.class), rs.getString("username"),
                 rs.getString("display_name"), rs.getBoolean("active"),

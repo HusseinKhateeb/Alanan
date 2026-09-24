@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
+import { UserAccessEditor } from './UserAccessEditor'
 
 interface UserSummary { id: string; username: string; displayName: string; active: boolean; roles: string[] }
 interface Options { roles: { name: string; permissions: string[] }[]; permissions: { code: string; description: string }[] }
@@ -18,6 +19,7 @@ export function UserDirectoryPage() {
   const [confirm, setConfirm] = useState('')
   const [formError, setFormError] = useState('')
   const [success, setSuccess] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const allowed = user?.permissions.includes('USERS_MANAGE') ?? false
   const canCreate = allowed && (user?.roles?.includes('ADMIN') ?? false)
   const users = useQuery({ queryKey: ['users', user?.id, page], queryFn: () => api<UserSummary[]>(`/users?page=${page}`), enabled: allowed, retry: false })
@@ -41,7 +43,7 @@ export function UserDirectoryPage() {
     setSuccess('')
     if (form.password !== confirm) { setFormError(t('auth.passwordMismatch')); return }
     const bytes = new TextEncoder().encode(form.password).length
-    if (form.password.length < 14 || bytes > 72) { setFormError(t('auth.passwordPolicy')); return }
+    if (form.password.length < 6 || bytes > 72) { setFormError(t('auth.passwordPolicy')); return }
     if (form.roles.length === 0) { setFormError(t('auth.chooseRole')); return }
     create.mutate({ ...form, username: form.username.trim(), displayName: form.displayName.trim() })
   }
@@ -69,12 +71,15 @@ export function UserDirectoryPage() {
       </form>}
     </section>}
     <h2>{t('auth.existingUsers')}</h2>
+    {canCreate && editingId && options.data && <UserAccessEditor id={editingId} options={options.data}
+      onClose={() => setEditingId(null)} onRemoved={() => { setEditingId(null); setSuccess(t('auth.userRemoved')) }} />}
     {users.isPending && <p role="status">{t('auth.loading')}</p>}
     {users.error && <p role="alert">{t(`errors.${users.error instanceof ApiError ? users.error.code : 'SERVER_ERROR'}`)}</p>}
     <div className="user-list">{users.data?.map(account => <article key={account.id}>
       <strong>{account.displayName}</strong><span>{account.username}</span>
       <span>{account.roles?.map(role => t(`auth.role.${role}`, { defaultValue: role })).join(', ')}</span>
       <span>{t(account.active ? 'auth.active' : 'auth.inactive')}</span>
+      {canCreate && account.id !== user?.id && <button type="button" onClick={() => { setEditingId(account.id); setSuccess('') }}>{t('auth.editUser')}</button>}
     </article>)}</div>
     <div className="pagination"><button disabled={page === 0 || users.isFetching} onClick={() => setPage(page - 1)}>{t('auth.previous')}</button>
       <button disabled={!users.data || users.data.length < 50 || users.isFetching} onClick={() => setPage(page + 1)}>{t('auth.next')}</button></div>

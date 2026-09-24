@@ -35,7 +35,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/refresh").permitAll()
-                .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/logout-current", "/api/auth/language", "/api/auth/password", "/api/users", "/api/users/options").authenticated()
+                .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/logout-current", "/api/auth/language", "/api/auth/password", "/api/users", "/api/users/options", "/api/users/*", "/api/users/*/access").authenticated()
                 .requestMatchers("/api/purchases", "/api/purchases/*", "/api/purchases/*/cancel", "/api/purchases/*/pdf", "/api/supplier-balances", "/api/inventory", "/api/inventory/movements", "/api/inventory/adjustments").authenticated()
                 .requestMatchers("/api/expenses", "/api/expenses/*", "/api/expenses/*/cancel", "/api/waste", "/api/waste/*").authenticated()
                 .requestMatchers("/api/audit").authenticated()

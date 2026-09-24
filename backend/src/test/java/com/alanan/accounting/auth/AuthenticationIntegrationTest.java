@@ -82,7 +82,10 @@ class AuthenticationIntegrationTest {
     }
     @Test void changingPasswordRevokesExistingTokensAndRequiresTheCurrentPassword() throws Exception {
         String token = ownerToken();
-        String nextPassword = "new-strong-password-" + UUID.randomUUID();
+        String nextPassword = "abc123";
+        mvc.perform(put("/api/auth/password").header("Authorization", "Bearer " + token).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("currentPassword", PASSWORD, "newPassword", "abc12"))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("PASSWORD_POLICY"));
         mvc.perform(put("/api/auth/password").header("Authorization", "Bearer " + token).contentType("application/json")
             .content(json.writeValueAsString(Map.of("currentPassword", "wrong", "newPassword", nextPassword))))
             .andExpect(status().isBadRequest());
@@ -275,6 +278,52 @@ class AuthenticationIntegrationTest {
             .andExpect(status().isForbidden());
         mvc.perform(get("/api/users/options").header("Authorization", "Bearer " + clerk.get("accessToken").asText()))
             .andExpect(status().isForbidden());
+    }
+    @Test void sixCharacterPasswordCanBeUsedForANewAccountButFiveCannot() throws Exception {
+        String owner = ownerToken();
+        String body = """
+            {"username":"shortpass","displayName":"Short Password","password":"abc123","preferredLanguage":"en",
+             "active":true,"roles":["EMPLOYEE"],"permissions":[]}
+            """;
+        mvc.perform(post("/api/users").header("Authorization", "Bearer " + owner).contentType("application/json")
+            .content(body.replace("abc123", "abc12")))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("PASSWORD_POLICY"));
+        mvc.perform(post("/api/users").header("Authorization", "Bearer " + owner).contentType("application/json")
+            .content(body)).andExpect(status().isCreated());
+        login("shortpass", "abc123");
+    }
+    @Test void adminCanChangeAccessAndRemoveUserWithoutErasingHistory() throws Exception {
+        String owner = ownerToken();
+        String body = """
+            {"username":"temporary","displayName":"Temporary","password":"abc123","preferredLanguage":"en",
+             "active":true,"roles":["EMPLOYEE"],"permissions":["SALES_CREATE"]}
+            """;
+        JsonNode created = json.readTree(mvc.perform(post("/api/users").header("Authorization", "Bearer " + owner)
+            .contentType("application/json").content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        String id = created.get("id").asText();
+        String oldToken = login("temporary", "abc123").get("accessToken").asText();
+        mvc.perform(get("/api/users/" + id).header("Authorization", "Bearer " + owner))
+            .andExpect(status().isOk()).andExpect(jsonPath("permissions[0]").value("SALES_CREATE"));
+        mvc.perform(put("/api/users/" + id + "/access").header("Authorization", "Bearer " + oldToken)
+            .contentType("application/json").content("{\"roles\":[\"ADMIN\"],\"permissions\":[\"USERS_MANAGE\"]}"))
+            .andExpect(status().isForbidden());
+        mvc.perform(put("/api/users/" + id + "/access").header("Authorization", "Bearer " + owner)
+            .contentType("application/json").content("{\"roles\":[\"EMPLOYEE\"],\"permissions\":[\"SALES_VIEW\"]}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("permissions[0]").value("SALES_VIEW"));
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + oldToken)).andExpect(status().isUnauthorized());
+        assertThat(login("temporary", "abc123").get("user").get("permissions").toString())
+            .contains("SALES_VIEW").doesNotContain("SALES_CREATE");
+        mvc.perform(delete("/api/users/" + id).header("Authorization", "Bearer " + owner)).andExpect(status().isNoContent());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("username", "temporary", "password", "abc123"))))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/users/" + id).header("Authorization", "Bearer " + owner)).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id=?::uuid AND deleted_at IS NOT NULL", Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_events WHERE user_id=?::uuid", Integer.class, id)).isPositive();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_audit WHERE target_user_id=?::uuid AND action='REMOVE'", Integer.class, id)).isEqualTo(1);
+        UUID ownerId = jdbc.queryForObject("SELECT id FROM users WHERE username='owner'", UUID.class);
+        mvc.perform(delete("/api/users/" + ownerId).header("Authorization", "Bearer " + owner))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("CANNOT_REMOVE_SELF"));
     }
     @Test void manageUsersPermissionWithoutAdminRoleCannotCreateAccounts() throws Exception {
         UUID id = employee();

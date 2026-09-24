@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
@@ -25,4 +26,13 @@ public class UserController {
     UserManagement.CreatedUser create(@Valid @RequestBody CreateUserRequest input, @AuthenticationPrincipal AuthUser user) {
         return management.create(input,user);
     }
+    @GetMapping("/{id}")
+    UserManagement.UserAccess detail(@PathVariable UUID id) { return management.detail(id); }
+    @PutMapping("/{id}/access")
+    UserManagement.UserAccess access(@PathVariable UUID id, @Valid @RequestBody UpdateUserAccessRequest input,
+                                     @AuthenticationPrincipal AuthUser user) {
+        return management.updateAccess(id, input, user);
+    }
+    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
+    void remove(@PathVariable UUID id, @AuthenticationPrincipal AuthUser user) { management.remove(id, user); }
 }

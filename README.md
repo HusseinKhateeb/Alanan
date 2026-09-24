@@ -43,7 +43,7 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-21' # adjust for your JDK
 .\scripts\dev\Start-Development.ps1
 ```
 
-The helper creates an ignored root `.env` with random development database/JWT secrets if no file exists, starts PostgreSQL and starts the backend. To provision a development admin without a prompt, set `BOOTSTRAP_ADMIN_ENABLED=true`, `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` in that ignored file. Bootstrap creates the named admin only when that username is absent, even if other users exist; later starts never reset its password or permissions. The password must have at least 14 characters and at most 72 UTF-8 bytes. Existing `.env` values are preserved; replace template placeholders before running. Existing database volumes require their original password.
+The helper creates an ignored root `.env` with random development database/JWT secrets if no file exists, starts PostgreSQL and starts the backend. To provision a development admin without a prompt, set `BOOTSTRAP_ADMIN_ENABLED=true`, `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` in that ignored file. Bootstrap creates the named admin only when that username is absent, even if other users exist; later starts never reset its password or permissions. The password must have at least 6 characters and at most 72 UTF-8 bytes. Existing `.env` values are preserved; replace template placeholders before running. Existing database volumes require their original password.
 
 For later starts, use the same command:
 

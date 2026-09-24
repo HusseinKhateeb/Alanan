@@ -42,7 +42,7 @@ export function AccountPage() {
       <p>{t('auth.passwordPolicy')}</p>
       <form className="account-password-form" onSubmit={submitPassword}>
         <label>{t('auth.currentPassword')}<input type="password" required autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label>
-        <label>{t('auth.newPassword')}<input type="password" required minLength={14} autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} /></label>
+        <label>{t('auth.newPassword')}<input type="password" required minLength={6} autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} /></label>
         <label>{t('auth.confirmPassword')}<input type="password" required autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} /></label>
         <button className="primary-button" disabled={busy || offline} type="submit">{t('auth.savePassword')}</button>
       </form>
