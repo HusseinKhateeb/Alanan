@@ -46,6 +46,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/api/customer-payments", "/api/customer-payments/*", "/api/customer-payments/*/cancel").authenticated()
                 .requestMatchers("/api/supplier-payments", "/api/supplier-payments/*", "/api/supplier-payments/*/cancel").authenticated()
                 .requestMatchers("/api/sales", "/api/sales/*", "/api/sales/*/cancel", "/api/sales/*/pdf", "/api/customer-balances").authenticated()
+                .requestMatchers("/api/orders", "/api/orders/*", "/api/orders/*/deliver").authenticated()
                 .requestMatchers("/api/products", "/api/products/*", "/api/customers", "/api/customers/*",
                     "/api/suppliers", "/api/suppliers/*", "/api/container-types", "/api/container-types/*",
                     "/api/payment-methods", "/api/payment-methods/*", "/api/expense-categories", "/api/expense-categories/*").authenticated()

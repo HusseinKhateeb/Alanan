@@ -1,4 +1,4 @@
-param([int]$WebPort = 8090, [switch]$UseExistingBackend, [switch]$RestartBackend)
+param([int]$WebPort = 8090, [switch]$UseExistingBackend, [switch]$RestartBackend, [switch]$QuickStart)
 
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -6,12 +6,24 @@ $envFile = Join-Path $root '.env'
 if (-not (Test-Path -LiteralPath $envFile)) { throw 'Create the ignored root .env first.' }
 if ($WebPort -lt 1 -or $WebPort -gt 65535) { throw 'WebPort must be between 1 and 65535.' }
 if ($UseExistingBackend -and $RestartBackend) { throw 'Choose either -UseExistingBackend or -RestartBackend.' }
+if ($QuickStart -and $RestartBackend) { throw 'QuickStart cannot be combined with RestartBackend; rebuild to apply code changes.' }
 $names = @('JAVA_HOME','SERVER_PORT','SERVER_ADDRESS','DB_URL','DB_HOST','DB_PORT','DB_NAME','DB_USERNAME','DB_PASSWORD',
     'JWT_SECRET','SPRING_PROFILES_ACTIVE','BOOTSTRAP_ADMIN_ENABLED','BOOTSTRAP_ADMIN_USERNAME',
     'BOOTSTRAP_ADMIN_PASSWORD','AUTH_COOKIE_SECURE','PG_DUMP_COMMAND','PG_RESTORE_COMMAND',
     'ALANAN_WEB_PORT','ALANAN_BACKEND_PORT','ALANAN_STATIC_DIR')
 $previous = @{}
 foreach ($name in $names) { $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
+
+function Test-LocalDatabasePort {
+    $client = New-Object Net.Sockets.TcpClient
+    try {
+        $connection = $client.BeginConnect('127.0.0.1', 15433, $null, $null)
+        if (-not $connection.AsyncWaitHandle.WaitOne(1000)) { return $false }
+        $client.EndConnect($connection)
+        return $true
+    } catch { return $false }
+    finally { $client.Dispose() }
+}
 
 try {
     foreach ($line in [IO.File]::ReadAllLines($envFile)) {
@@ -27,6 +39,45 @@ try {
     }
     if ($env:DB_HOST -match '(?i)^ep-[a-z0-9-]+-pooler\..*\.neon\.tech$') {
         $env:DB_HOST = $env:DB_HOST -replace '(?i)(^ep-[a-z0-9-]+)-pooler(\.)', '$1$2'
+    }
+    if ($env:DB_URL -match '(?i)^jdbc:postgresql://(127\.0\.0\.1|localhost):15433/' -and
+        -not (Test-LocalDatabasePort)) {
+        $docker = Get-Command docker.exe -ErrorAction SilentlyContinue
+        if (-not $docker) { throw 'Docker Desktop is required for the local database but docker.exe was not found.' }
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+        $dockerVersion = & $docker.Source info '--format' '{{.ServerVersion}}' 2>$null
+        if ([string]::IsNullOrWhiteSpace($dockerVersion)) {
+            $desktop = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
+            if (-not (Test-Path -LiteralPath $desktop)) { throw 'Start Docker Desktop, then try Start app again.' }
+            Write-Host 'Starting Docker Desktop for the local database...'
+            Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
+            $dockerReady = $false
+            for ($attempt = 0; $attempt -lt 45; $attempt++) {
+                Start-Sleep -Seconds 2
+                $dockerVersion = & $docker.Source info '--format' '{{.ServerVersion}}' 2>$null
+                if (-not [string]::IsNullOrWhiteSpace($dockerVersion)) { $dockerReady = $true; break }
+            }
+            if (-not $dockerReady) { throw 'Docker Desktop did not become ready. Open Docker Desktop and try again.' }
+        }
+        $databaseContainer = 'alanan-local-postgres18'
+        $containerState = & $docker.Source inspect '--format' '{{.State.Status}}' $databaseContainer 2>$null
+        if ([string]::IsNullOrWhiteSpace($containerState)) { throw "Local database container $databaseContainer was not found. No new database was created." }
+        if ($containerState.Trim() -ne 'running') {
+            Write-Host 'Starting the existing local PostgreSQL container...'
+            $startedContainer = & $docker.Source start $databaseContainer 2>$null
+            if ($startedContainer -notcontains $databaseContainer) { throw "Could not start $databaseContainer. Check Docker Desktop." }
+        }
+        $databaseReady = $false
+        for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            $databaseStatus = & $docker.Source exec $databaseContainer pg_isready '-h' '127.0.0.1' '-p' '5432' 2>$null
+            if ($databaseStatus -match 'accepting connections') { $databaseReady = $true; break }
+            Start-Sleep -Seconds 2
+        }
+        if (-not $databaseReady) { throw 'Local PostgreSQL did not become ready. Check the database container logs.' }
+        Write-Host 'Local PostgreSQL is ready.'
+        } finally { $ErrorActionPreference = $previousPreference }
     }
     $backendPort = if ($env:SERVER_PORT) { [int]$env:SERVER_PORT } else { 8080 }
     if ($backendPort -eq $WebPort) { throw 'The frontend and backend ports must differ.' }
@@ -89,8 +140,13 @@ try {
 
     Push-Location $root
     try {
-        & npm.cmd --prefix frontend run build
-        if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
+        $builtFrontend = Join-Path $root 'frontend\dist\index.html'
+        if ($QuickStart -and (Test-Path -LiteralPath $builtFrontend)) {
+            Write-Host 'Using the last built frontend. Choose Apply code changes to rebuild.'
+        } else {
+            & npm.cmd --prefix frontend run build
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
+        }
         if ($RestartBackend -and $reuseBackend) {
             Stop-Process -Id $backendListener.OwningProcess -ErrorAction Stop
             for ($attempt = 0; $attempt -lt 20; $attempt++) {
@@ -103,8 +159,13 @@ try {
             $reuseBackend = $false
         }
         if (-not $reuseBackend) {
-            & $maven '-Dmaven.repo.local=.tools/m2' '-f' 'backend/pom.xml' '-DskipTests' 'package' '-q'
-            if ($LASTEXITCODE -ne 0) { throw 'Backend package failed.' }
+            $builtBackend = Join-Path $root 'backend\target\accounting-0.1.0-SNAPSHOT.jar'
+            if ($QuickStart -and (Test-Path -LiteralPath $builtBackend)) {
+                Write-Host 'Using the last built backend. Choose Apply code changes to rebuild.'
+            } else {
+                & $maven '-Dmaven.repo.local=.tools/m2' '-f' 'backend/pom.xml' '-DskipTests' 'package' '-q'
+                if ($LASTEXITCODE -ne 0) { throw 'Backend package failed.' }
+            }
         }
     } finally { Pop-Location }
 

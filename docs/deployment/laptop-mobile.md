@@ -8,6 +8,16 @@ Tailscale Serve proxies the private HTTPS address to `http://127.0.0.1:8090`. Af
 
 From the repository root, start the app after a reboot with:
 
+For a desktop control window, double-click `scripts/deploy/Open-ControlPanel.cmd`. It shows backend health and website status, starts the app, stops this project's backend, and rebuilds/restarts the backend after code changes. **Open code** opens this repository in VS Code when available, or in File Explorer otherwise. Closing the control window does not stop the app. The laptop database still requires Docker Desktop and `alanan-local-postgres18` to be running. Startup messages are in `.tools/anywhere/control-launch.out.log` and `.tools/anywhere/control-launch.err.log`; the **Open logs** button opens that folder.
+
+For a desktop icon without a console window, run `scripts/deploy/Build-ControlPanel.ps1` once to create `.tools/control-panel/AlAnanControl.exe`, then make a shortcut to that executable. The executable is a small launcher for the same PowerShell control panel; rebuild it if you move the repository. The generated executable stays in ignored `.tools` and is not committed.
+
+The brand source is `assets/branding/alanan-logo.png`. Run `scripts/deploy/Build-BrandAssets.ps1` after changing it to regenerate the website favicon, installed-app icons, and desktop icon, then run `Build-ControlPanel.ps1` again to embed the desktop icon in the executable.
+
+The control panel's **Start app** uses the last successful frontend and backend builds for a faster startup. On the first run it builds missing artifacts. After editing code, use **Apply code changes** to rebuild both parts and restart the backend; **Start app** alone does not apply source edits. The command-line launcher still rebuilds by default; add `-QuickStart` to reuse built artifacts from the command line.
+
+You can also use the command-line launcher:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\deploy\Start-Anywhere.ps1
 ```

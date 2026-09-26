@@ -1,4 +1,14 @@
 {
+  "orders": {
+    "list": "Orders", "new": "New order", "edit": "Edit order", "save": "Save order", "saveEdit": "Save changes",
+    "date": "Order date", "deliveryDate": "Delivery date", "plannedPaid": "Payment on delivery",
+    "items": "Items", "search": "Search orders", "OPEN": "Awaiting delivery", "DELIVERED": "Delivered",
+    "notPosted": "Orders do not change stock, customer balances, or reports until delivery.",
+    "deliver": "Mark as delivered", "deliverHelp": "Delivery creates a sale invoice and records the planned payment. Review the order before continuing.",
+    "createInvoice": "Delivered - create sale invoice", "viewInvoice": "View sale invoice",
+    "delete": "Delete order", "deleteHelp": "Enter a reason and confirm. Deleted orders remain in the audit history and cannot be delivered.",
+    "closed": "This order can no longer be edited.", "loadFailed": "Could not load this order.", "onlineRequired": "Connect to the backend to manage orders."
+  },
   "brand": "Al Anan Roastery",
   "subtitle": "Accounting & business management",
   "workspace": "Your business workspace",
@@ -194,6 +204,8 @@
     "confirm": "Confirm cancellation"
   },
   "errors": {
+    "ORDER_ALREADY_DELIVERED": "This order was already delivered and cannot be changed or deleted.",
+    "ORDER_VERSION_CONFLICT": "This order changed elsewhere. Reload it before saving.",
     "BACKUP_INVALID": "This is not a valid PostgreSQL custom-format backup, or it exceeds the 512 MB limit.",
     "BACKUP_SCHEMA_INVALID": "The backup does not contain the required Alanan tables.",
     "BACKUP_CHECKSUM_INVALID": "The SHA-256 checksum is invalid or does not match the file.",

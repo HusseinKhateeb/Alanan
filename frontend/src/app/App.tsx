@@ -24,6 +24,9 @@ const CustomerPaymentDetailPage = lazy(() => import('../features/customerpayment
 const NewSupplierPaymentPage = lazy(() => import('../features/supplierpayments/NewSupplierPaymentPage').then(m => ({ default: m.NewSupplierPaymentPage })))
 const SaleListPage = lazy(() => import('../features/sales/SaleListPage').then(m => ({ default: m.SaleListPage })))
 const SaleDetailPage = lazy(() => import('../features/sales/SaleDetailPage').then(m => ({ default: m.SaleDetailPage })))
+const OrderListPage = lazy(() => import('../features/orders/OrderListPage').then(m => ({ default: m.OrderListPage })))
+const OrderEditorPage = lazy(() => import('../features/orders/OrderEditorPage').then(m => ({ default: m.OrderEditorPage })))
+const OrderDetailPage = lazy(() => import('../features/orders/OrderDetailPage').then(m => ({ default: m.OrderDetailPage })))
 const CustomerBalancesPage = lazy(() => import('../features/sales/CustomerBalancesPage').then(m => ({ default: m.CustomerBalancesPage })))
 const PaymentHistoryPage = lazy(() => import('../features/supplierpayments/PaymentHistoryPage').then(m => ({ default: m.PaymentHistoryPage })))
 const PaymentDetailPage = lazy(() => import('../features/supplierpayments/PaymentHistoryPage').then(m => ({ default: m.PaymentDetailPage })))
@@ -48,9 +51,9 @@ function Workspace() {
     <section className="workspace-section" aria-labelledby="quick-actions-title"><h2 id="quick-actions-title">{t('quickActions')}</h2>
     <nav className="quick-actions" aria-label={t('quickActions')}>
       {user?.permissions.includes('SALES_CREATE') && <Link className="quick-action quick-action-primary" to="/sales/new"><span aria-hidden="true">＋</span><strong>{t('sales.new')}</strong><small>{t('quickSaleHelp')}</small></Link>}
+      {user?.permissions.includes('SALES_CREATE') && <Link className="quick-action" to="/orders/new"><span aria-hidden="true">+</span><strong>{t('orders.new')}</strong><small>{t('orders.notPosted')}</small></Link>}
       {user?.permissions.includes('PURCHASES_CREATE') && <Link className="quick-action" to="/purchases/new"><span aria-hidden="true">＋</span><strong>{t('purchase.new')}</strong></Link>}
       {user?.permissions.includes('EXPENSES_CREATE') && <Link className="quick-action" to="/expenses/new"><span aria-hidden="true">＋</span><strong>{t('operations.new.expenses')}</strong></Link>}
-      {user?.permissions.includes('INVENTORY_ADJUST') && <Link className="quick-action" to="/waste/new"><span aria-hidden="true">＋</span><strong>{t('operations.new.waste')}</strong></Link>}
     </nav></section>
     <DashboardOverview />
     <section className="workspace-section" aria-labelledby="records-title"><h2 id="records-title">{t('recordsTitle')}</h2>
@@ -62,7 +65,7 @@ function Workspace() {
       {user?.permissions.includes('INVENTORY_ADJUST') && <Link to="/waste">{t('operations.waste')}</Link>}
       {user?.permissions.includes('CUSTOMER_PAYMENTS_CREATE') && <Link to="/customer-payments/new">{t('customerPayments.new')}</Link>}
       {user?.permissions.includes('SALES_VIEW') && <Link to="/customer-payments">{t('customerPayments.history')}</Link>}
-      {user?.permissions.includes('SALES_VIEW') && <><Link to="/sales">{t('sales.list')}</Link><Link to="/customer-balances">{t('sales.customerBalances')}</Link></>}
+      {user?.permissions.includes('SALES_VIEW') && <><Link to="/sales">{t('sales.list')}</Link><Link to="/customer-balances">{t('sales.customerBalances')}</Link><Link to="/orders">{t('orders.list')}</Link></>}
       {user?.permissions.includes('SUPPLIER_PAYMENTS_CREATE') && <Link to="/supplier-payments/new">{t('payments.new')}</Link>}
       {user?.permissions.includes('PURCHASES_VIEW') && <Link to="/supplier-payments">{t('payments.history')}</Link>}
       {user?.permissions.includes('PURCHASES_VIEW') && <><Link to="/purchases">{t('purchase.list')}</Link><Link to="/supplier-balances">{t('purchase.supplierBalances')}</Link></>}
@@ -113,6 +116,7 @@ function AuthenticatedApp() {
       <Route path="/waste" element={<OperationHistoryPage kind="waste" />} /><Route path="/waste/new" element={<OperationEntryPage kind="waste" />} />
       <Route path="/customer-payments/new" element={<NewCustomerPaymentPage />} /><Route path="/customer-payments" element={<CustomerPaymentHistoryPage />} /><Route path="/customer-payments/:id" element={<CustomerPaymentDetailPage />} />
       <Route path="/sales/new" element={<NewSalePage />} /><Route path="/sales" element={<SaleListPage />} /><Route path="/sales/:id" element={<SaleDetailPage />} /><Route path="/customer-balances" element={<CustomerBalancesPage />} />
+      <Route path="/orders" element={<OrderListPage />} /><Route path="/orders/new" element={<OrderEditorPage />} /><Route path="/orders/:id/edit" element={<OrderEditorPage />} /><Route path="/orders/:id" element={<OrderDetailPage />} />
       <Route path="/" element={<Workspace />} /><Route path="/master/:catalog" element={<MasterDataPage />} /><Route path="/users" element={<UserDirectoryPage />} />
       <Route path="/purchases" element={<PurchaseListPage />} /><Route path="/purchases/new" element={<NewPurchasePage />} /><Route path="/purchases/:id" element={<PurchaseDetailPage />} />
       <Route path="/supplier-payments" element={<PaymentHistoryPage />} /><Route path="/supplier-payments/new" element={<NewSupplierPaymentPage />} /><Route path="/supplier-payments/:id" element={<PaymentDetailPage />} />

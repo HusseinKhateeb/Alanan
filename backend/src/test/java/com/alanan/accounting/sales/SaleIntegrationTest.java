@@ -53,6 +53,65 @@ class SaleIntegrationTest {
         return json.readTree(mvc.perform(post("/api/sales").header("Authorization","Bearer "+token).contentType("application/json").content(json.writeValueAsString(body)))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
     }
+    @Test void orderCanBeEditedWithoutPostingAndDeliveredExactlyOnce() throws Exception {
+        var original=request("0",List.of(item(spice,"BY_WEIGHT","1","45")));
+        var order=json.readTree(mvc.perform(post("/api/orders").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(original)))
+            .andExpect(status().isCreated()).andExpect(jsonPath("status").value("OPEN"))
+            .andReturn().getResponse().getContentAsString());
+        UUID orderId=UUID.fromString(order.get("id").asText());
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements",Integer.class)).isZero();
+        var revised=request("45",List.of(item(spice,"BY_WEIGHT","2","45")));
+        var updated=json.readTree(mvc.perform(put("/api/orders/"+orderId).header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(Map.of("version",0,"sale",revised))))
+            .andExpect(status().isOk()).andExpect(jsonPath("total").value("90.00"))
+            .andReturn().getResponse().getContentAsString());
+        assertThat(updated.get("version").asLong()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+        var delivery=Map.of("version",1,"deliveryDate","2026-01-03");
+        var delivered=json.readTree(mvc.perform(post("/api/orders/"+orderId+"/deliver").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(delivery)))
+            .andExpect(status().isOk()).andExpect(jsonPath("status").value("DELIVERED"))
+            .andReturn().getResponse().getContentAsString());
+        assertThat(delivered.get("sale_id").asText()).isNotBlank();
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("8");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isEqualTo(1);
+        mvc.perform(post("/api/orders/"+orderId+"/deliver").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(delivery)))
+            .andExpect(status().isOk()).andExpect(jsonPath("sale_id").value(delivered.get("sale_id").asText()));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isEqualTo(1);
+        mvc.perform(delete("/api/orders/"+orderId).header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"version\":2,\"reason\":\"Wrong\"}"))
+            .andExpect(status().isConflict());
+    }
+    @Test void deletingAnOpenOrderNeedsReasonAndDoesNotCreateASale() throws Exception {
+        var order=json.readTree(mvc.perform(post("/api/orders").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))))))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        String path="/api/orders/"+order.get("id").asText();
+        mvc.perform(delete(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"version\":0,\"reason\":\"\"}")).andExpect(status().isBadRequest());
+        mvc.perform(delete(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content("{\"version\":0,\"reason\":\"Wrong order\"}")).andExpect(status().isNoContent());
+        mvc.perform(get(path).header("Authorization","Bearer "+token)).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM order_events WHERE action='DELETE'",Integer.class)).isEqualTo(1);
+    }
+    @Test void failedDeliveryLeavesOrderOpenAndAccountingUntouched() throws Exception {
+        var order=json.readTree(mvc.perform(post("/api/orders").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))))))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        UUID orderId=UUID.fromString(order.get("id").asText());
+        jdbc.update("UPDATE products SET active=FALSE WHERE id=?",spice);
+        mvc.perform(post("/api/orders/"+orderId+"/deliver").header("Authorization","Bearer "+token)
+            .contentType("application/json").content("{\"version\":0,\"deliveryDate\":\"2026-01-03\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value("PRODUCT_UNAVAILABLE"));
+        assertThat(jdbc.queryForObject("SELECT status FROM orders WHERE id=?",String.class,orderId)).isEqualTo("OPEN");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+    }
     Map<String,Object> correction(UUID customerId,String paid,List<Map<String,Object>> items) {
         var body=new LinkedHashMap<String,Object>(); body.put("version",0); body.put("customerId",customerId);
         body.put("invoiceDate","2026-01-02"); body.put("paidNow",paid); body.put("reason","Correct entry"); body.put("notes","Corrected"); body.put("items",items);

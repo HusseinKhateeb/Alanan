@@ -12,6 +12,8 @@ export function QuickNavigation() {
     { to: '/', label: t('nav.home'), show: true },
     { to: '/sales/new', label: t('nav.newSale'), show: can('SALES_CREATE') && (!offline || location.pathname !== '/') },
     { to: '/sales', label: t('nav.sales'), show: !offline && can('SALES_VIEW') },
+    { to: '/orders', label: t('orders.list'), show: !offline && can('SALES_VIEW') },
+    { to: '/orders/new', label: t('orders.new'), show: !offline && can('SALES_CREATE') },
     { to: '/purchases/new', label: t('nav.newPurchase'), show: !offline && can('PURCHASES_CREATE') },
     { to: '/purchases', label: t('nav.purchases'), show: !offline && can('PURCHASES_VIEW') },
     { to: '/expenses/new', label: t('nav.newExpense'), show: !offline && can('EXPENSES_CREATE') },
