@@ -293,3 +293,44 @@ a.dashboard-card:hover { background: #f2d6a8; }
 }
 @media (min-width: 641px) { .report-scroll-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .quick-action:hover { transform: none; } }
+
+/* Keep the same field treatment across sales, purchasing, reports, account and admin forms. */
+main :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px 14px;
+  border: 1px solid #b99a74;
+  border-radius: 12px;
+  background: #fffefd;
+  color: var(--ink);
+  font: inherit;
+  box-shadow: 0 1px 2px #4a251610;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+main :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea):hover:not(:disabled) {
+  border-color: var(--gold);
+}
+main :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea):focus-visible {
+  border-color: var(--gold);
+  outline: 3px solid #dca85375;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px #dca85322;
+}
+main :is(input, select, textarea):disabled {
+  background: #f3eadb;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+main :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--pepper);
+  box-shadow: 0 0 0 3px #9c3d2422;
+}
+main input::placeholder, main textarea::placeholder { color: #806b59; opacity: 1; }
+main textarea { min-height: 100px; resize: vertical; }
+main input[type=file] { max-width: 100%; padding: 10px; border: 1px dashed #b99a74; border-radius: 12px; background: #fffefd; }
+main input[type=file]::file-selector-button { margin-inline-end: 12px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: #f1dfc3; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+main .checkbox input[type=checkbox] { accent-color: var(--brown); flex: 0 0 auto; }
+@media (prefers-reduced-motion: reduce) {
+  main :is(input, select, textarea) { transition: none; }
+}

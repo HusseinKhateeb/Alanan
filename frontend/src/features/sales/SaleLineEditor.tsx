@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import { linePreview } from './calculations'
 import type { SaleLine, SaleMode } from './types'
-interface Props { item: SaleLine; index: number; disabled: boolean; canRemove: boolean; onChange: (item: SaleLine) => void; onRemove: () => void; onNext: () => void }
-export function SaleLineEditor({ item, index, disabled, canRemove, onChange, onRemove, onNext }: Props) {
+interface Props { item: SaleLine; index: number; disabled: boolean; canRemove: boolean; autoFocusFirst?: boolean; onChange: (item: SaleLine) => void; onRemove: () => void; onNext: () => void }
+export function SaleLineEditor({ item, index, disabled, canRemove, autoFocusFirst = true, onChange, onRemove, onNext }: Props) {
   const { t } = useTranslation()
   const result = linePreview(item)
   const weight = item.kind === 'PRODUCT' && item.reference?.tracking_type === 'WEIGHT'
@@ -12,7 +12,7 @@ export function SaleLineEditor({ item, index, disabled, canRemove, onChange, onR
       {(['PRODUCT', 'CONTAINER'] as const).map(kind => <button type="button" key={kind} aria-pressed={item.kind === kind}
         onClick={() => onChange({ ...item, kind, reference: null, mode: kind === 'CONTAINER' ? 'BY_PIECE' : 'BY_WEIGHT', quantity: '1', requestedAmount: '', unitPrice: '' })}>{t('sales.' + kind)}</button>)}
     </div></div>
-    <ReferenceSelector key={item.kind} kind={item.kind === 'PRODUCT' ? 'products' : 'container-types'} id={'sale-line-' + item.localId} value={item.reference} disabled={disabled} quickPick autoFocus={index === 0}
+    <ReferenceSelector key={item.kind} kind={item.kind === 'PRODUCT' ? 'products' : 'container-types'} id={'sale-line-' + item.localId} value={item.reference} disabled={disabled} quickPick autoFocus={autoFocusFirst && index === 0}
       onChange={reference => { onChange({ ...item, reference, mode: reference?.tracking_type === 'WEIGHT' ? 'BY_WEIGHT' : 'BY_PIECE', unitPrice: reference?.default_selling_price ?? reference?.default_price ?? '', requestedAmount: '' });
         if (reference) requestAnimationFrame(() => document.getElementById('sale-line-' + item.localId + '-value')?.focus()) }} />
     {item.kind === 'CONTAINER' && <p>{t('sales.containerHelp')}</p>}

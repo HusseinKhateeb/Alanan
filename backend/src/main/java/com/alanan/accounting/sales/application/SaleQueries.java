@@ -36,7 +36,8 @@ public class SaleQueries {
         var rows=jdbc.queryForList(SUMMARY+" WHERE id=?",id);
         if(rows.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND");
         var result=PagedRows.external(rows.getFirst());
-        result.putAll(PagedRows.external(jdbc.queryForMap("SELECT notes,paid_at_sale,payment_method_name,created_at,version FROM sales WHERE id=?",id)));
+        result.putAll(PagedRows.external(jdbc.queryForMap("SELECT notes,paid_at_sale,payment_method_id,payment_method_name,created_at,version FROM sales WHERE id=?",id)));
+        result.put("customer_is_walk_in", jdbc.queryForObject("SELECT is_walk_in FROM customers WHERE id=?",Boolean.class,rows.getFirst().get("customer_id")));
         String costs=user.permissions().contains("COST_VIEW") ? ",cost_at_sale,cost_total" : "";
         result.put("items",jdbc.queryForList("SELECT product_id,container_type_id,item_name,product_code,item_type,selling_mode,quantity,unit_price,requested_amount,line_total"+costs+" FROM sale_items WHERE sale_id=? ORDER BY line_number",id).stream().map(PagedRows::external).toList());
         result.put("payments",jdbc.queryForList("SELECT cp.id,cp.payment_date,cp.payment_method_name,a.amount,a.active FROM customer_payments cp JOIN customer_payment_allocations a ON a.payment_id=cp.id WHERE a.sale_id=? ORDER BY cp.created_at,cp.id",id).stream().map(PagedRows::external).toList());

@@ -19,8 +19,9 @@ public class SaleController {
     private final SaleService service;
     private final SaleQueries queries;
     private final SaleCancellationService cancellations;
+    private final SaleCorrectionService corrections;
     private final InvoicePdfService pdf;
-    public SaleController(SaleService service,SaleQueries queries,SaleCancellationService cancellations,InvoicePdfService pdf) { this.service=service; this.queries=queries; this.cancellations=cancellations; this.pdf=pdf; }
+    public SaleController(SaleService service,SaleQueries queries,SaleCancellationService cancellations,SaleCorrectionService corrections,InvoicePdfService pdf) { this.service=service; this.queries=queries; this.cancellations=cancellations; this.corrections=corrections; this.pdf=pdf; }
     @PostMapping("/sales") @ResponseStatus(HttpStatus.CREATED)
     public SaleService.Receipt create(@Valid @RequestBody SaleRequest request,@AuthenticationPrincipal AuthUser user) { return service.create(request,user); }
     @GetMapping("/sales") public PagedRows.Page list(@RequestParam(defaultValue="0") int page,@RequestParam(required=false) UUID customerId,
@@ -33,5 +34,6 @@ public class SaleController {
             .contentType(MediaType.APPLICATION_PDF).body(pdf.render(invoice,true));
     }
     @PostMapping("/sales/{id}/cancel") public Map<String,Object> cancel(@PathVariable UUID id,@Valid @RequestBody CancelSaleRequest request,@AuthenticationPrincipal AuthUser user) { return cancellations.cancel(id,request,user); }
+    @PutMapping("/sales/{id}") public Map<String,Object> correct(@PathVariable UUID id,@Valid @RequestBody CorrectSaleRequest request,@AuthenticationPrincipal AuthUser user) { return corrections.correct(id,request,user); }
     @GetMapping("/customer-balances") public PagedRows.Page balances(@RequestParam(defaultValue="0") int page) { return queries.balances(page); }
 }

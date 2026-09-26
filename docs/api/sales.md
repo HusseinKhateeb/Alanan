@@ -5,6 +5,7 @@ Restart the backend to apply Flyway V6. JWT authentication is required. ADMIN an
 - `POST /api/sales`: SALES_CREATE, returns 201 and `{id, invoiceNumber, total, paid, outstanding, status, negativeStock}`.
 - `GET /api/sales?page=0&customerId=<optional UUID>`: SALES_VIEW, paginated history.
 - `GET /api/sales/{id}`: SALES_VIEW, invoice snapshots and items.
+- `PUT /api/sales/{id}`: SALES_EDIT, correct a saved invoice with `version`, `customerId`, `invoiceDate`, `notes`, `paidNow`, `paymentMethodId`, `reason`, and `items` in the same line format as creation.
 - `GET /api/customer-balances?page=0`: SALES_VIEW, named customers' total sales, paid and outstanding amounts.
 
 Lists return `{items, hasMore}`, up to 50 items. Read responses use snake_case fields; money and quantities are decimal strings.
@@ -30,7 +31,9 @@ Lists return `{items, hasMore}`, up to 50 items. Read responses use snake_case f
 
 Each of 1–100 items selects exactly one product or container type. Weight products accept BY_WEIGHT (quantity) or BY_AMOUNT (requestedAmount). Piece products and containers require BY_PIECE and a whole quantity. BY_AMOUNT stores requested revenue unchanged and rounds kg to three decimals HALF_UP. Other line totals round to two decimals HALF_UP. Zero rounded quantities/totals are rejected. Prices are line overrides and never change master defaults.
 
-Null customer selects the active walk-in customer. Walk-in sales must be fully paid. Named customers allow zero, partial or full payment; overpayment is rejected. Null payment method selects the active default when paidNow is positive. Later settlement is available through [customer payments](customer-payments.md). Refunds and invoice editing are not implemented.
+Null customer selects the active walk-in customer. Walk-in sales must be fully paid. Named customers allow zero, partial or full payment; overpayment is rejected. Null payment method selects the active default when paidNow is positive. Later settlement is available through [customer payments](customer-payments.md). Cancellation and audited invoice corrections are available from invoice details.
+
+Corrections are transactional and version-checked. They recalculate totals, cumulative paid status, product stock and line cost snapshots, and append a `sale_audit` EDIT record. Customer changes are blocked if any customer-payment allocation is linked. Quantity/product changes are blocked if another stock movement occurred after the original sale for an affected product; changing price, date, notes or the initial payment does not need stock replay. The invoice number and its year stay fixed, and cancelled invoices cannot be corrected.
 
 One transaction creates the numbered invoice, item snapshots, payment facts, stock movements and audit entry. Product sales deduct quantity and freeze current WAC and cost total. Unknown cost remains null. Containers never select a spice, deduct stock or invent cost. Negative stock is allowed, returned as a warning and recorded in audit. Cost fields are omitted entirely for users without COST_VIEW.
 

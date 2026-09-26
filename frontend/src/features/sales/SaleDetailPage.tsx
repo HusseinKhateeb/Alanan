@@ -8,6 +8,7 @@ import type { SaleDetail } from './types'
 import { ReferenceSelector } from '../purchases/ReferenceSelector'
 import type { ReferenceRecord } from '../masterdata/catalogs'
 import { HardDeleteControl } from '../cancellations/HardDeleteControl'
+import { SaleCorrectionForm } from './SaleCorrectionForm'
 export function SaleDetailPage() {
   const { id } = useParams()
   const { t } = useTranslation()
@@ -57,6 +58,9 @@ export function SaleDetailPage() {
         {user?.permissions.includes('COST_VIEW') && <small>{t('sales.cost')}: {item.cost_total === null || item.cost_total === undefined ? t('purchase.unknownCost') : item.cost_total + ' ₪'}</small>}
       </div></article>)}</div>
       <p>{t('purchase.total')}: {sale.total} ₪ · {t('purchase.paid')}: {sale.paid} ₪ · {t('purchase.outstanding')}: {sale.outstanding} ₪</p>
+      {sale.status !== 'CANCELLED' && user?.permissions.includes('SALES_EDIT') && <SaleCorrectionForm key={sale.id + '-' + sale.version} sale={sale} onSaved={() => {
+        for (const key of ['sales', 'dashboard', 'inventory', 'customer-balances', 'reports']) void client.invalidateQueries({ queryKey: [key] })
+      }} />}
       {sale.cancellation && <section className="cancellation-record"><h2>{t('sales.cancelled')}</h2><p>{sale.cancellation.reason}</p>
         <p>{t('sales.refundRecorded')}: {sale.cancellation.refund_amount} ₪{sale.cancellation.refund_method_name ? ' · ' + sale.cancellation.refund_method_name : ''}</p></section>}
       {sale.status !== 'CANCELLED' && user?.permissions.includes('SALES_EDIT') && <details className="cancel-panel"><summary>{t('sales.cancelInvoice')}</summary>

@@ -53,6 +53,58 @@ class SaleIntegrationTest {
         return json.readTree(mvc.perform(post("/api/sales").header("Authorization","Bearer "+token).contentType("application/json").content(json.writeValueAsString(body)))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
     }
+    Map<String,Object> correction(UUID customerId,String paid,List<Map<String,Object>> items) {
+        var body=new LinkedHashMap<String,Object>(); body.put("version",0); body.put("customerId",customerId);
+        body.put("invoiceDate","2026-01-02"); body.put("paidNow",paid); body.put("reason","Correct entry"); body.put("notes","Corrected"); body.put("items",items);
+        return body;
+    }
+    @Test void saleCorrectionReplacesCustomerProductQuantityAndInitialPaymentAtomically() throws Exception {
+        var sale=create(request("0",List.of(item(spice,"BY_WEIGHT","2","45"))));
+        UUID replacement=UUID.randomUUID();
+        jdbc.update("INSERT INTO customers(id,name) VALUES (?,'Replacement')",replacement);
+        var body=correction(replacement,"30",List.of(item(honey,"BY_PIECE","1","80")));
+        mvc.perform(put("/api/sales/"+sale.get("id").asText()).header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(body)))
+            .andExpect(status().isOk()).andExpect(jsonPath("total").value("80.00"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,honey)).isEqualByComparingTo("3");
+        mvc.perform(get("/api/sales/"+sale.get("id").asText()).header("Authorization","Bearer "+token))
+            .andExpect(status().isOk()).andExpect(jsonPath("customer_name").value("Replacement"))
+            .andExpect(jsonPath("paid_at_sale").value("30.00")).andExpect(jsonPath("items[0].product_id").value(honey.toString()))
+            .andExpect(jsonPath("version").value(1));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sale_audit WHERE action='EDIT'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_movements WHERE reference_type='SALE' AND reference_id=?",Integer.class,UUID.fromString(sale.get("id").asText()))).isEqualTo(1);
+    }
+    @Test void laterStockMovementBlocksQuantityCorrectionButNotPriceCorrection() throws Exception {
+        var first=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        String path="/api/sales/"+first.get("id").asText();
+        mvc.perform(put(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(correction(customer,"0",List.of(item(spice,"BY_WEIGHT","2","45"))))) )
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("SALE_STOCK_REPLAY_REQUIRED"));
+        mvc.perform(put(path).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(correction(customer,"0",List.of(item(spice,"BY_WEIGHT","1","50"))))) )
+            .andExpect(status().isOk()).andExpect(jsonPath("total").value("50.00"));
+        assertThat(jdbc.queryForObject("SELECT current_stock FROM products WHERE id=?",BigDecimal.class,spice)).isEqualByComparingTo("8");
+    }
+    @Test void linkedCustomerPaymentBlocksCustomerChangeButAllowsSafeInitialPaymentCorrection() throws Exception {
+        var sale=create(request("0",List.of(item(spice,"BY_WEIGHT","1","45"))));
+        UUID saleId=UUID.fromString(sale.get("id").asText());
+        var payment=Map.of("requestId",UUID.randomUUID(),"customerId",customer,"paymentDate","2026-02-01",
+            "amount","20","mode","MANUAL","allocations",List.of(Map.of("invoiceId",saleId,"amount","20")));
+        mvc.perform(post("/api/customer-payments").header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(payment))).andExpect(status().isCreated());
+        UUID replacement=UUID.randomUUID(); jdbc.update("INSERT INTO customers(id,name) VALUES (?,'Other')",replacement);
+        var changed=correction(replacement,"10",List.of(item(spice,"BY_WEIGHT","1","45"))); changed.put("version",1);
+        mvc.perform(put("/api/sales/"+saleId).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(changed))).andExpect(status().isConflict())
+            .andExpect(jsonPath("errorCode").value("SALE_CUSTOMER_PAYMENTS_LINKED"));
+        changed.put("customerId",customer);
+        mvc.perform(put("/api/sales/"+saleId).header("Authorization","Bearer "+token).contentType("application/json")
+            .content(json.writeValueAsString(changed))).andExpect(status().isOk())
+            .andExpect(jsonPath("paid").value("30.00"));
+        assertThat(jdbc.queryForObject("SELECT paid_at_sale FROM sales WHERE id=?",BigDecimal.class,saleId)).isEqualByComparingTo("10");
+    }
     void reject(Map<String,Object> body,String code) throws Exception {
         mvc.perform(post("/api/sales").header("Authorization","Bearer "+token).contentType("application/json").content(json.writeValueAsString(body)))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("errorCode").value(code));
