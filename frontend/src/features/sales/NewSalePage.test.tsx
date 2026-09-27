@@ -73,6 +73,18 @@ test('walk-in sale requires full payment before saving', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Pay full total' }))
   expect(screen.getByRole('button', { name: 'Queue sale' })).toBeEnabled()
 })
+test('quick kg price buttons update the sale line and saved draft', async () => {
+  await prepared()
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => reference(url)))
+  mount()
+  const forty = await screen.findByRole('button', { name: '₪40 / kg' })
+  fireEvent.click(forty)
+  expect(screen.getByLabelText('Price per kg (₪)')).toHaveValue('40')
+  expect(forty).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(screen.getByRole('button', { name: '₪35 / kg' }))
+  expect(screen.getByLabelText('Price per kg (₪)')).toHaveValue('35')
+  await waitFor(async () => expect((await localDrafts.saleDrafts.get('buyer'))?.draft.items[0].unitPrice).toBe('35'))
+})
 test('clears a saved receipt whose invoice was hard-deleted', async () => {
   const draft = await prepared()
   await saveSaleDraft('buyer', { ...draft, receipt: { id: 'deleted-sale', invoiceNumber: 'SAL-2026-000006', total: '29.00', paid: '29.00', outstanding: '0.00', status: 'PAID', negativeStock: false } })

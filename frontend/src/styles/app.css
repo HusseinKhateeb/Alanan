@@ -254,10 +254,16 @@ a.dashboard-card:hover { background: #f2d6a8; }
   border: 1px solid var(--line); border-radius: 9px; font: inherit; color: var(--ink); background: white; }
 .cancel-panel .checkbox { display: flex; align-items: flex-start; }
 .cancellation-record h2 { margin-top: 0; }
-.sale-line { padding: 15px 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 15px; }
+.sale-line { padding: 15px 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 15px; align-items: start; }
 .sale-line .reference-selector { grid-column: 1 / -1; }
 .sale-line > strong { align-self: center; color: var(--brown); font-size: 18px; }
 .sale-line > button:last-child { justify-self: end; }
+.sale-price-field { display: grid; gap: 7px; }
+.sale-price-controls { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.purchase-page .sale-price-controls > input { flex: 1 1 0; width: 0; min-width: 0; }
+.sale-price-shortcuts { display: flex; flex: 0 0 auto; gap: 6px; }
+.sale-price-shortcuts button { min-height: 44px; padding: 5px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--brown); font-weight: 700; white-space: nowrap; }
+.sale-price-shortcuts button[aria-pressed="true"] { border-color: var(--brown); background: var(--brown); color: #fffaf1; }
 .choice-field { display: grid; gap: 7px; }
 .segmented-control { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); background: #f7e9d3; border-radius: 12px; }
 .segmented-control button { flex: 1; border: 0; border-radius: 9px; background: transparent; min-height: 38px; padding: 5px 10px; }
@@ -281,6 +287,8 @@ a.dashboard-card:hover { background: #f2d6a8; }
   main { padding: 22px 14px calc(80px + env(safe-area-inset-bottom)); }
   .purchase-header-fields { grid-template-columns: minmax(0, 1fr); }
   .sale-line { padding: 14px; }
+  .sale-price-controls { flex-wrap: wrap; }
+  .purchase-page .sale-price-controls > input { flex-basis: 100%; width: 100%; }
   .purchase-save-bar { margin-inline: -14px; border-radius: 16px 16px 0 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
   .purchase-save-bar .primary-button { flex: 1; }
   .entry-save-bar { margin-inline: -14px; border-radius: 16px 16px 0 0; }

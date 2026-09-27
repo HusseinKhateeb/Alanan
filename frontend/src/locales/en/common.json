@@ -1,7 +1,7 @@
 {
   "orders": {
     "list": "Orders", "new": "New order", "edit": "Edit order", "save": "Save order", "saveEdit": "Save changes",
-    "date": "Order date", "deliveryDate": "Delivery date", "plannedPaid": "Payment on delivery",
+    "date": "Delivery date", "deliveryDate": "Planned delivery date", "actualDeliveryDate": "Actual delivery date", "notDue": "This order can be delivered on or after {{date}}.", "plannedPaid": "Payment on delivery",
     "items": "Items", "search": "Search orders", "OPEN": "Awaiting delivery", "DELIVERED": "Delivered",
     "notPosted": "Orders do not change stock, customer balances, or reports until delivery.",
     "deliver": "Mark as delivered", "deliverHelp": "Delivery creates a sale invoice and records the planned payment. Review the order before continuing.",
@@ -206,6 +206,7 @@
   "errors": {
     "ORDER_ALREADY_DELIVERED": "This order was already delivered and cannot be changed or deleted.",
     "ORDER_VERSION_CONFLICT": "This order changed elsewhere. Reload it before saving.",
+    "ORDER_DELIVERY_NOT_DUE": "The planned delivery date has not arrived yet.",
     "BACKUP_INVALID": "This is not a valid PostgreSQL custom-format backup, or it exceeds the 512 MB limit.",
     "BACKUP_SCHEMA_INVALID": "The backup does not contain the required Alanan tables.",
     "BACKUP_CHECKSUM_INVALID": "The SHA-256 checksum is invalid or does not match the file.",
@@ -354,7 +355,7 @@
     "BY_WEIGHT": "By weight",
     "BY_AMOUNT": "By money amount",
     "BY_PIECE": "By piece",
-    "priceKg": "Price per kg (₪)",
+    "priceKg": "Price per kg (₪)", "quickKgPrices": "Quick price per kg", "quickKgPrice": "₪{{price}} / kg",
     "pricePiece": "Price per piece (₪)",
     "requestedAmount": "Requested amount (₪)",
     "kg": "kg",

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -17,11 +17,12 @@ function fromOrder(order: OrderDetail): SaleDraft {
   return {
     requestId: order.request.requestId,
     customer: order.request.customerId ? { id: order.request.customerId, name: order.customer_name, active: true, version: 0 } : null,
-    invoiceDate: order.request.invoiceDate, notes: order.request.notes ?? '', paidNow: order.request.paidNow,
+    invoiceDate: order.request.invoiceDate, notes: order.request.notes ?? '', paidNow: String(order.request.paidNow),
     paymentMethod: order.request.paymentMethodId ? { id: String(order.request.paymentMethodId), name: '', active: true, version: 0 } : null,
     items: order.request.items.map((item, index) => ({
       localId: crypto.randomUUID(), kind: item.containerTypeId ? 'CONTAINER' : 'PRODUCT', reference: order.references[index],
-      mode: item.mode, quantity: item.quantity ?? '1', requestedAmount: item.requestedAmount ?? '', unitPrice: item.unitPrice,
+      mode: item.mode, quantity: item.quantity == null ? '1' : String(item.quantity),
+      requestedAmount: item.requestedAmount == null ? '' : String(item.requestedAmount), unitPrice: String(item.unitPrice),
     })),
   }
 }
@@ -37,7 +38,8 @@ export function OrderEditorPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const result = useQuery({ queryKey: ['order', id], queryFn: () => api<OrderDetail>('/orders/' + id), enabled: !!id && !!user && !offline, retry: false })
-  const draft = storedDraft ?? (result.data ? fromOrder(result.data) : null)
+  const initialDraft = useMemo(() => result.data ? fromOrder(result.data) : null, [result.data])
+  const draft = storedDraft ?? initialDraft
   useFormUpdateGuard(!!draft && !busy)
   if (!user?.permissions.includes('SALES_CREATE')) return <main><p role="alert">{t('errors.FORBIDDEN')}</p></main>
   if (offline) return <main><p role="alert">{t('orders.onlineRequired')}</p></main>
@@ -81,9 +83,9 @@ export function OrderEditorPage() {
       <fieldset disabled={busy} className="purchase-header-fields">
         <ReferenceSelector kind="customers" combined id="order-customer" value={draft.customer} disabled={busy} onChange={customer => update({ ...draft, customer })} />
         <button type="button" disabled={busy} onClick={() => setCustomerForm(open => !open)}>{t('sales.newCustomer')}</button>
-        <label>{t('orders.date')}<input required type="date" value={draft.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} /></label>
+        <label>{t('orders.deliveryDate')}<input required type="date" value={draft.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} /></label>
       </fieldset>
-      {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={busy} canRemove={draft.items.length > 1} autoFocusFirst={!id}
+      {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={busy} canRemove={draft.items.length > 1} autoFocusFirst={!id} quickKgPrices
         onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
         onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })}
         onNext={() => index === draft.items.length - 1 ? addLine() : document.getElementById('sale-line-' + draft.items[index + 1].localId + '-search')?.focus()} />)}

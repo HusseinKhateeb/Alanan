@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setAccessToken } from '../../api/client'
 import i18n from '../../app/i18n'
+import { businessToday } from '../../utils/businessDate'
 import { OrderDetailPage } from './OrderDetailPage'
 
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'owner', permissions: ['SALES_VIEW', 'SALES_CREATE'] }, offline: false }) }))
@@ -36,4 +37,16 @@ test('requires reason and confirmation before deleting an open order', async () 
   fireEvent.click(remove)
   await waitFor(() => expect(fetcher.mock.calls.some(call => call[0] === '/api/orders/order-1' && call[1]?.method === 'DELETE')).toBe(true))
   expect(JSON.parse(String(fetcher.mock.calls.find(call => call[1]?.method === 'DELETE')?.[1]?.body))).toEqual({ version: 0, reason: 'Wrong order' })
+})
+
+test('does not offer delivery before the planned date', async () => {
+  const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  expect(future > businessToday()).toBe(true)
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ ...order, order_date: future }) })))
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/orders/order-1']}><Routes>
+    <Route path="/orders/:id" element={<OrderDetailPage />} />
+  </Routes></MemoryRouter></QueryClientProvider>)
+  expect(await screen.findByText('ORD-2026-000001')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Delivered - create sale invoice' })).toBeDisabled()
+  expect(screen.getByText(`This order can be delivered on or after ${future}.`)).toBeInTheDocument()
 })

@@ -24,6 +24,7 @@ export function OrderDetailPage() {
   if (result.isPending) return <main role="status">{t('master.loading')}</main>
   if (result.error || !result.data) return <main role="alert">{t('orders.loadFailed')}</main>
   const order = result.data
+  const deliveryDue = order.order_date <= businessToday()
   async function deliver(event: FormEvent) {
     event.preventDefault()
     if (busy || !id) return
@@ -48,7 +49,7 @@ export function OrderDetailPage() {
   }
   return <main className="purchase-page"><Link to="/orders">{t('orders.list')}</Link><h1>{order.order_number}</h1>
     <section className="purchase-receipt"><p><strong>{t('orders.' + order.status)}</strong></p>
-      <p>{order.customer_name} · {order.order_date}</p>
+      <p>{order.customer_name} · {t('orders.deliveryDate')}: {order.order_date}</p>
       <p>{t('purchase.total')}: {order.total} ₪ · {t('orders.plannedPaid')}: {order.planned_paid} ₪</p>
       {order.status === 'OPEN' && <p>{t('orders.notPosted')}</p>}
       {order.notes && <p>{order.notes}</p>}
@@ -62,8 +63,9 @@ export function OrderDetailPage() {
     {error && <p role="alert" className="error">{t('errors.' + error.code, { defaultValue: t('errors.SERVER_ERROR') })}</p>}
     {order.status === 'OPEN' && user?.permissions.includes('SALES_CREATE') && <>
       <section className="workspace-section"><h2>{t('orders.deliver')}</h2><p>{t('orders.deliverHelp')}</p>
-        <form onSubmit={event => void deliver(event)} className="purchase-header-fields"><label>{t('orders.deliveryDate')}<input required type="date" value={deliveryDate} onChange={event => setDeliveryDate(event.target.value)} /></label>
-          <button className="primary-button" disabled={busy}>{t('orders.createInvoice')}</button></form></section>
+        {!deliveryDue && <p role="status">{t('orders.notDue', { date: order.order_date })}</p>}
+        <form onSubmit={event => void deliver(event)} className="purchase-header-fields"><label>{t('orders.actualDeliveryDate')}<input required type="date" max={businessToday()} value={deliveryDate} onChange={event => setDeliveryDate(event.target.value)} /></label>
+          <button className="primary-button" disabled={busy || !deliveryDue}>{t('orders.createInvoice')}</button></form></section>
       <details className="cancel-panel"><summary>{t('orders.delete')}</summary><p>{t('orders.deleteHelp')}</p>
         <form onSubmit={event => void remove(event)}><label>{t('hardDelete.reason')}<input required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></label>
           <label className="checkbox"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{t('hardDelete.confirm')}</label>

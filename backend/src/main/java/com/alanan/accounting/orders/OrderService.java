@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderService {
+    private static final ZoneId BUSINESS_ZONE=ZoneId.of("Asia/Hebron");
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final SaleService sales;
@@ -74,7 +76,8 @@ public class OrderService {
     }
     @Transactional
     @PreAuthorize("hasAuthority('SALES_CREATE')")
-    public Map<String,Object> create(SaleRequest request,AuthUser user) {
+    public Map<String,Object> create(OrderRequest orderRequest,AuthUser user) {
+        SaleRequest request=orderRequest.asSaleRequest();
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))","order:"+user.id()+":"+request.requestId());
         String payload=serialize(request);
         var existing=jdbc.queryForList("SELECT id,request_json=?::jsonb AS same_request FROM orders WHERE created_by=? AND request_id=?",payload,user.id(),request.requestId());
@@ -96,10 +99,11 @@ public class OrderService {
     public Map<String,Object> edit(UUID id,OrderChangeRequest change,AuthUser user) {
         var current=row(id,true);
         open(current,change.version());
-        var estimated=estimate(change.sale());
-        String payload=serialize(change.sale());
+        SaleRequest revised=change.sale().asSaleRequest();
+        var estimated=estimate(revised);
+        String payload=serialize(revised);
         jdbc.update("UPDATE orders SET customer_id=?,customer_name=?,order_date=?,notes=?,total=?,planned_paid=?,request_json=?::jsonb,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            estimated.customerId(),estimated.customerName(),change.sale().invoiceDate(),change.sale().notes(),estimated.total(),change.sale().paidNow(),payload,id);
+            estimated.customerId(),estimated.customerName(),revised.invoiceDate(),revised.notes(),estimated.total(),revised.paidNow(),payload,id);
         jdbc.update("INSERT INTO order_events(order_id,user_id,action,details) VALUES (?,?,'EDIT',?::jsonb)",id,user.id(),payload);
         return detail(id);
     }
@@ -109,6 +113,10 @@ public class OrderService {
         var current=row(id,true);
         if("DELIVERED".equals(current.get("status"))) return detail(id);
         open(current,request.version());
+        if(((java.sql.Date)current.get("order_date")).toLocalDate().isAfter(LocalDate.now(BUSINESS_ZONE)))
+            throw new ApiException(HttpStatus.CONFLICT,"ORDER_DELIVERY_NOT_DUE");
+        if(request.deliveryDate().isAfter(LocalDate.now(BUSINESS_ZONE)))
+            throw new ApiException(HttpStatus.BAD_REQUEST,"VALIDATION_FAILED");
         var saved=deserialize(current.get("request_json"));
         var invoice=new SaleRequest(id,saved.customerId(),request.deliveryDate(),saved.notes(),saved.paidNow(),saved.paymentMethodId(),saved.items());
         var receipt=sales.create(invoice,user);

@@ -134,7 +134,7 @@ function SaleEditor({ userId }: { userId: string }) {
           <label>{t('purchase.date')}<input required type="date" value={draft.invoiceDate} aria-invalid={!!error?.fieldErrors.invoiceDate} onChange={event => update({ ...draft, invoiceDate: event.target.value })} />
             {error?.fieldErrors.invoiceDate && <span className="field-error">{t('errors.INVALID_FIELD')}</span>}</label>
         </fieldset>
-        {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1}
+        {draft.items.map((item, index) => <SaleLineEditor key={item.localId} item={item} index={index} disabled={locked} canRemove={draft.items.length > 1} quickKgPrices
           onChange={next => update({ ...draft, items: draft.items.map(existing => existing.localId === item.localId ? next : existing) })}
           onRemove={() => update({ ...draft, items: draft.items.filter(existing => existing.localId !== item.localId) })}
           onNext={() => { if (index === draft.items.length - 1) addLine(); else requestAnimationFrame(() => document.getElementById('sale-line-' + draft.items[index + 1].localId + '-search')?.focus()) }} />)}

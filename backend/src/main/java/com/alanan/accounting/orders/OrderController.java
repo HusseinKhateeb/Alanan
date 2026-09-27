@@ -2,7 +2,6 @@ package com.alanan.accounting.orders;
 
 import com.alanan.accounting.auth.AuthUser;
 import com.alanan.accounting.common.api.PagedRows;
-import com.alanan.accounting.sales.api.SaleRequest;
 import jakarta.validation.Valid;
 import java.util.Map;
 import java.util.UUID;
@@ -17,7 +16,7 @@ public class OrderController {
     public OrderController(OrderService orders) { this.orders=orders; }
     @GetMapping public PagedRows.Page list(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="") String q) { return orders.list(page,q); }
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
-    public Map<String,Object> create(@Valid @RequestBody SaleRequest request,@AuthenticationPrincipal AuthUser user) { return orders.create(request,user); }
+    public Map<String,Object> create(@Valid @RequestBody OrderRequest request,@AuthenticationPrincipal AuthUser user) { return orders.create(request,user); }
     @GetMapping("/{id}") public Map<String,Object> detail(@PathVariable UUID id) { return orders.detail(id); }
     @PutMapping("/{id}") public Map<String,Object> edit(@PathVariable UUID id,@Valid @RequestBody OrderChangeRequest request,@AuthenticationPrincipal AuthUser user) { return orders.edit(id,request,user); }
     @PostMapping("/{id}/deliver") public Map<String,Object> deliver(@PathVariable UUID id,@Valid @RequestBody DeliverOrderRequest request,@AuthenticationPrincipal AuthUser user) { return orders.deliver(id,request,user); }

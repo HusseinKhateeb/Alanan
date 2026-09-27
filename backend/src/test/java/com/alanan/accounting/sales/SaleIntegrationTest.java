@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
@@ -85,6 +86,27 @@ class SaleIntegrationTest {
         mvc.perform(delete("/api/orders/"+orderId).header("Authorization","Bearer "+token)
             .contentType("application/json").content("{\"version\":2,\"reason\":\"Wrong\"}"))
             .andExpect(status().isConflict());
+    }
+    @Test void plannedDeliveryDateCanBeInTheFutureButSaleInvoiceDateCannot() throws Exception {
+        String future=LocalDate.now().plusDays(7).toString();
+        var planned=request("0",List.of(item(spice,"BY_WEIGHT","1","45")));
+        planned.put("invoiceDate",future);
+        mvc.perform(post("/api/sales").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(planned)))
+            .andExpect(status().isBadRequest());
+        var order=json.readTree(mvc.perform(post("/api/orders").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(planned)))
+            .andExpect(status().isCreated()).andExpect(jsonPath("order_date").value(future))
+            .andReturn().getResponse().getContentAsString());
+        mvc.perform(post("/api/orders/"+order.get("id").asText()+"/deliver").header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(Map.of("version",0,"deliveryDate",LocalDate.now().toString()))))
+            .andExpect(status().isConflict()).andExpect(jsonPath("errorCode").value("ORDER_DELIVERY_NOT_DUE"));
+        String revisedDate=LocalDate.now().plusDays(10).toString();
+        planned.put("invoiceDate",revisedDate);
+        mvc.perform(put("/api/orders/"+order.get("id").asText()).header("Authorization","Bearer "+token)
+            .contentType("application/json").content(json.writeValueAsString(Map.of("version",0,"sale",planned))))
+            .andExpect(status().isOk()).andExpect(jsonPath("order_date").value(revisedDate));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales",Integer.class)).isZero();
     }
     @Test void deletingAnOpenOrderNeedsReasonAndDoesNotCreateASale() throws Exception {
         var order=json.readTree(mvc.perform(post("/api/orders").header("Authorization","Bearer "+token)

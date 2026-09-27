@@ -26,7 +26,7 @@ export function OrderListPage() {
     {result.data?.items.length === 0 && <p>{t('master.empty')}</p>}
     <div className="reference-list">{result.data?.items.map(order => <article key={order.id}><div>
       <Link to={'/orders/' + order.id}><strong>{order.order_number}</strong></Link>
-      <span>{order.customer_name} · {order.order_date}</span>
+      <span>{order.customer_name} · {t('orders.deliveryDate')}: {order.order_date}</span>
       <span>{t('purchase.total')}: {order.total} ₪</span>
       <small>{t('orders.' + order.status)}</small>
     </div></article>)}</div>
